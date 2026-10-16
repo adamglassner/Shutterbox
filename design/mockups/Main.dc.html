@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Shutterbox Desktop Library</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#111213}
+a{color:#E8A33D}a:hover{color:#F4C177}
+</style>
+</helmet>
+<div style="min-height: 900px; background: #111213; color: #ECEAE6; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; display: flex; flex-wrap: wrap; align-items: stretch">
+
+<nav aria-label="Library" style="flex: 1 1 240px; max-width: 260px; min-width: 220px; background: #17191B; border-right: 1px solid #26292C; padding: 20px 14px; box-sizing: border-box; display: flex; flex-direction: column; gap: 22px">
+<div style="display: flex; align-items: center; gap: 10px; padding: 0 8px">
+<svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="7" width="26" height="20" rx="4" fill="none" stroke="{{accent}}" stroke-width="2.2"></rect><circle cx="16" cy="17" r="5.5" fill="none" stroke="{{accent}}" stroke-width="2.2"></circle><rect x="9" y="3.5" width="9" height="4" rx="1.5" fill="{{accent}}"></rect></svg>
+<span style="font-family: Sora, sans-serif; font-weight: 700; font-size: 19px; letter-spacing: -0.01em">Shutterbox</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 2px">
+<div style="font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #8D9196; padding: 0 10px 6px">Library</div>
+<a href="#" style="display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; background: #26292C; color: #ECEAE6; text-decoration: none; font-weight: 500"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg>Photos<span style="margin-left: auto; font-size: 12px; color: #8D9196">48,212</span></a>
+<a href="#" style="display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; color: #C9CBCE; text-decoration: none"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 6h16v13H4z"></path><path d="M7 3h10"></path></svg>Albums</a>
+<a href="#" style="display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; color: #C9CBCE; text-decoration: none"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c1-4 4.5-6 8-6s7 2 8 6"></path></svg>People</a>
+<a href="#" style="display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; color: #C9CBCE; text-decoration: none"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"></path><circle cx="12" cy="9.5" r="2.5"></circle></svg>Places</a>
+<a href="#" style="display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; color: #C9CBCE; text-decoration: none"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 20s-8-4.7-8-10.5A4.5 4.5 0 0 1 12 7a4.5 4.5 0 0 1 8 2.5C20 15.3 12 20 12 20z"></path></svg>Favorites</a>
+<a href="#" style="display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; color: #C9CBCE; text-decoration: none"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5V12l3 2"></path></svg>Recently added</a>
+<a href="#" style="display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; color: #C9CBCE; text-decoration: none"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 7h16"></path><path d="M9 7V4h6v3"></path><path d="M6 7l1 13h10l1-13"></path></svg>Trash</a>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 2px">
+<div style="font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #8D9196; padding: 0 10px 6px">Albums</div>
+<a href="#" style="padding: 8px 10px; border-radius: 8px; color: #C9CBCE; text-decoration: none">California Coast 2026</a>
+<a href="#" style="padding: 8px 10px; border-radius: 8px; color: #C9CBCE; text-decoration: none">Family</a>
+<a href="#" style="padding: 8px 10px; border-radius: 8px; color: #C9CBCE; text-decoration: none">Film scans</a>
+<a href="#" style="padding: 8px 10px; border-radius: 8px; color: #C9CBCE; text-decoration: none">Screenshots</a>
+</div>
+
+<div style="margin-top: auto; background: #1F2224; border: 1px solid #2C3033; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: center; gap: 8px"><span style="width: 8px; height: 8px; border-radius: 50%; background: #5FCB8B"></span><span style="font-weight: 600">Home Server</span><span style="margin-left: auto; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #8D9196">synced</span></div>
+<div style="height: 6px; border-radius: 3px; background: #2C3033; overflow: hidden"><div style="width: 62%; height: 100%; background: {{accent}}"></div></div>
+<div style="font-size: 12px; color: #A4A8AC">1.24 TB of 2 TB used</div>
+</div>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+<header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px 24px; border-bottom: 1px solid #26292C">
+<h1 style="margin: 0; font-family: Sora, sans-serif; font-size: 22px; font-weight: 600; margin-right: 8px">Photos</h1>
+<label style="flex: 1 1 260px; max-width: 460px; display: flex; align-items: center; gap: 8px; background: #1C1E20; border: 1px solid #2C3033; border-radius: 10px; padding: 0 12px; height: 40px; color: #8D9196">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+<span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search photos</span>
+<input type="search" placeholder="Search people, places, things, dates…" style="flex: 1; min-width: 0; background: transparent; border: 0; outline: none; color: #ECEAE6; font: inherit">
+</label>
+<div role="group" aria-label="Zoom" style="display: flex; background: #1C1E20; border: 1px solid #2C3033; border-radius: 10px; overflow: hidden">
+<button type="button" style="height: 38px; padding: 0 14px; background: transparent; border: 0; color: #A4A8AC; font: inherit">Years</button>
+<button type="button" style="height: 38px; padding: 0 14px; background: transparent; border: 0; color: #A4A8AC; font: inherit">Months</button>
+<button type="button" style="height: 38px; padding: 0 14px; background: #2C3033; border: 0; color: #ECEAE6; font: inherit; font-weight: 500">Days</button>
+</div>
+<div style="margin-left: auto; display: flex; gap: 8px; align-items: center">
+<button type="button" aria-label="Slideshow" style="width: 40px; height: 40px; border-radius: 10px; background: #1C1E20; border: 1px solid #2C3033; color: #C9CBCE; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M8 5l11 7-11 7z"></path></svg></button>
+<button type="button" style="height: 40px; padding: 0 16px; border-radius: 10px; background: {{accent}}; border: 0; color: #1A1408; font: inherit; font-weight: 600; display: flex; align-items: center; gap: 8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M12 4v11"></path><path d="M7 10l5 5 5-5"></path><path d="M4 20h16"></path></svg>Import</button>
+</div>
+</header>
+
+<div style="display: flex; flex-wrap: wrap; flex: 1; min-height: 0">
+<section aria-label="Timeline" style="flex: 999 1 480px; min-width: 0; padding: 20px 24px 32px; display: flex; flex-direction: column; gap: 26px">
+<sc-for list="{{groups}}" as="g" hint-placeholder-count="3">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: baseline; gap: 10px">
+<h2 style="margin: 0; font-family: Sora, sans-serif; font-size: 16px; font-weight: 600">{{g.date}}</h2>
+<span style="font-size: 13px; color: #A4A8AC">{{g.place}}</span>
+<span style="margin-left: auto; font-size: 12px; color: #8D9196">{{g.count}}</span>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax({{tile}}, 1fr)); gap: 4px">
+<sc-for list="{{g.photos}}" as="p" hint-placeholder-count="8">
+<button type="button" aria-label="{{p.label}}" style="{{p.style}}"></button>
+</sc-for>
+</div>
+</div>
+</sc-for>
+</section>
+
+<aside aria-label="Photo info" style="flex: 1 1 280px; max-width: 320px; min-width: 260px; border-left: 1px solid #26292C; background: #151618; padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px">
+<div style="aspect-ratio: 4 / 3; border-radius: 10px; background: #5E7A8C; position: relative; overflow: hidden"><div style="position: absolute; left: 0; right: 0; bottom: 0; height: 42%; background: #C88B4A"></div><div style="position: absolute; left: 0; right: 0; bottom: 30%; height: 14%; background: #3F5A6B"></div></div>
+<div>
+<div style="font-family: Sora, sans-serif; font-weight: 600; font-size: 16px">IMG_4821.HEIC</div>
+<div style="color: #A4A8AC; font-size: 13px; margin-top: 4px">Sat, Oct 11, 2026 · 6:42 PM</div>
+</div>
+<dl style="margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 10px; font-size: 13px">
+<div><dt style="color: #8D9196; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em">Camera</dt><dd style="margin: 3px 0 0">Pixel 9 Pro</dd></div>
+<div><dt style="color: #8D9196; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em">Lens</dt><dd style="margin: 3px 0 0">24 mm f/1.7</dd></div>
+<div><dt style="color: #8D9196; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em">Exposure</dt><dd style="margin: 3px 0 0; font-family: 'IBM Plex Mono', monospace">1/500 · ISO 50</dd></div>
+<div><dt style="color: #8D9196; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em">Size</dt><dd style="margin: 3px 0 0; font-family: 'IBM Plex Mono', monospace">4080×3072 · 3.1 MB</dd></div>
+<div style="grid-column: 1 / -1"><dt style="color: #8D9196; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em">Location</dt><dd style="margin: 3px 0 0">Pfeiffer Beach, Big Sur, CA</dd></div>
+</dl>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="color: #8D9196; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em">Tags</div>
+<div style="display: flex; flex-wrap: wrap; gap: 6px">
+<span style="padding: 5px 10px; border-radius: 999px; background: #26292C; font-size: 12px">sunset</span>
+<span style="padding: 5px 10px; border-radius: 999px; background: #26292C; font-size: 12px">beach</span>
+<span style="padding: 5px 10px; border-radius: 999px; background: #26292C; font-size: 12px">lighthouse</span>
+<button type="button" style="padding: 5px 10px; border-radius: 999px; background: transparent; border: 1px dashed #4A4F54; color: #A4A8AC; font: inherit; font-size: 12px">+ Add tag</button>
+</div>
+</div>
+<div style="margin-top: auto; display: flex; gap: 8px">
+<button type="button" style="flex: 1; height: 40px; border-radius: 10px; background: #26292C; border: 0; color: #ECEAE6; font: inherit; font-weight: 500">Edit</button>
+<button type="button" style="flex: 1; height: 40px; border-radius: 10px; background: #26292C; border: 0; color: #ECEAE6; font: inherit; font-weight: 500">Share</button>
+<button type="button" aria-label="Favorite" style="width: 44px; height: 40px; border-radius: 10px; background: #26292C; border: 0; color: {{accent}}; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 20s-8-4.7-8-10.5A4.5 4.5 0 0 1 12 7a4.5 4.5 0 0 1 8 2.5C20 15.3 12 20 12 20z"></path></svg></button>
+</div>
+</aside>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#E8A33D","options":["#E8A33D","#5FB3E8","#7FCB8E","#E57B6B"]},"density":{"editor":"enum","default":"comfortable","options":["compact","comfortable","large"]},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var accent = this.props.accent ?? '#E8A33D';
+    var density = this.props.density ?? 'comfortable';
+    var tile = density === 'compact' ? '110px' : (density === 'large' ? '210px' : '150px');
+    var tones = ['#5E7A8C','#C88B4A','#3F5A6B','#8A6B52','#B9A27D','#4D6650','#7B8F9E','#A3573F','#2F3B45','#D6B98C','#6C5A7A','#94A38A','#C4723E','#556B7D','#E0C9A6','#3C4A3A'];
+    var mk = function (n, seed, sel) {
+      var out = [];
+      for (var i = 0; i < n; i++) {
+        var a = tones[(i * 5 + seed) % tones.length];
+        var b = tones[(i * 3 + seed + 7) % tones.length];
+        var ring = (sel === i) ? ('outline: 3px solid ' + accent + '; outline-offset: -3px;') : '';
+        out.push({
+          label: 'Photo ' + (i + 1),
+          style: 'aspect-ratio: 1; border: 0; padding: 0; border-radius: 4px; cursor: pointer; background: linear-gradient(180deg, ' + a + ' 0 55%, ' + b + ' 55% 100%);' + ring
+        });
+      }
+      return out;
+    };
+    return {
+      accent: accent,
+      tile: tile,
+      groups: [
+        { date: 'Saturday, Oct 11', place: 'Big Sur, CA', count: '14 photos', photos: mk(14, 0, 3) },
+        { date: 'Wednesday, Oct 8', place: 'Home', count: '6 photos', photos: mk(6, 4, -1) },
+        { date: 'Sunday, Oct 5', place: 'Portland Japanese Garden', count: '11 photos', photos: mk(11, 9, -1) }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

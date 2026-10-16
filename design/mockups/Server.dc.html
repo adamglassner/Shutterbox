@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Shutterbox Server Admin</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#111213}
+a{color:#E8A33D}a:hover{color:#F4C177}
+</style>
+</helmet>
+<div style="min-height: 900px; background: #111213; color: #ECEAE6; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; display: flex; flex-wrap: wrap; align-items: stretch">
+
+<nav aria-label="Server admin" style="flex: 1 1 220px; max-width: 240px; min-width: 200px; background: #17191B; border-right: 1px solid #26292C; padding: 20px 14px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px">
+<div style="display: flex; flex-direction: column; gap: 4px; padding: 0 8px">
+<div style="display: flex; align-items: center; gap: 10px">
+<svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="7" width="26" height="20" rx="4" fill="none" stroke="{{accent}}" stroke-width="2.2"></rect><circle cx="16" cy="17" r="5.5" fill="none" stroke="{{accent}}" stroke-width="2.2"></circle><rect x="9" y="3.5" width="9" height="4" rx="1.5" fill="{{accent}}"></rect></svg>
+<span style="font-family: Sora, sans-serif; font-weight: 700; font-size: 18px">Shutterbox</span>
+</div>
+<span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #8D9196; padding-left: 38px">Server · v0.9.2</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<a href="#" style="padding: 9px 10px; border-radius: 8px; background: #26292C; color: #ECEAE6; text-decoration: none; font-weight: 500">Overview</a>
+<a href="#" style="padding: 9px 10px; border-radius: 8px; color: #C9CBCE; text-decoration: none">Users</a>
+<a href="#" style="padding: 9px 10px; border-radius: 8px; color: #C9CBCE; text-decoration: none">Libraries</a>
+<a href="#" style="padding: 9px 10px; border-radius: 8px; color: #C9CBCE; text-decoration: none">Storage</a>
+<a href="#" style="padding: 9px 10px; border-radius: 8px; color: #C9CBCE; text-decoration: none">Devices</a>
+<a href="#" style="padding: 9px 10px; border-radius: 8px; color: #C9CBCE; text-decoration: none">Jobs &amp; indexing</a>
+<a href="#" style="padding: 9px 10px; border-radius: 8px; color: #C9CBCE; text-decoration: none">Sharing &amp; links</a>
+<a href="#" style="padding: 9px 10px; border-radius: 8px; color: #C9CBCE; text-decoration: none">Backups</a>
+<a href="#" style="padding: 9px 10px; border-radius: 8px; color: #C9CBCE; text-decoration: none">Settings</a>
+<a href="#" style="padding: 9px 10px; border-radius: 8px; color: #C9CBCE; text-decoration: none">Logs</a>
+</div>
+<div style="margin-top: auto; padding: 12px; border-radius: 10px; background: #1F2224; border: 1px solid #2C3033; font-size: 12px; color: #A4A8AC; display: flex; flex-direction: column; gap: 4px">
+<div style="font-family: 'IBM Plex Mono', monospace; color: #ECEAE6">shutterbox.local:8420</div>
+<div>Docker · linux/amd64</div>
+<div>Up 12 days, 4 h</div>
+</div>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; padding: 24px 28px 36px; box-sizing: border-box; display: flex; flex-direction: column; gap: 22px">
+<header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+<div>
+<h1 style="margin: 0; font-family: Sora, sans-serif; font-size: 24px; font-weight: 600">Overview</h1>
+<div style="color: #A4A8AC; margin-top: 4px">Everything is running normally.</div>
+</div>
+<div style="margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap">
+<button type="button" style="height: 40px; padding: 0 16px; border-radius: 10px; background: #1C1E20; border: 1px solid #2C3033; color: #ECEAE6; font: inherit">Rescan libraries</button>
+<button type="button" style="height: 40px; padding: 0 16px; border-radius: 10px; background: {{accent}}; border: 0; color: #1A1408; font: inherit; font-weight: 600">Invite user</button>
+</div>
+</header>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px">
+<sc-for list="{{stats}}" as="s" hint-placeholder-count="4">
+<div style="background: #17191B; border: 1px solid #26292C; border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; gap: 6px">
+<div style="font-size: 12px; color: #A4A8AC">{{s.label}}</div>
+<div style="font-family: Sora, sans-serif; font-size: 28px; font-weight: 600">{{s.value}}</div>
+<div style="font-size: 12px; color: #8D9196">{{s.sub}}</div>
+</div>
+</sc-for>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 16px">
+<section aria-labelledby="dev-h" style="flex: 2 1 480px; min-width: 0; background: #17191B; border: 1px solid #26292C; border-radius: 12px; padding: 18px">
+<div style="display: flex; align-items: center; margin-bottom: 10px">
+<h2 id="dev-h" style="margin: 0; font-family: Sora, sans-serif; font-size: 16px; font-weight: 600">Connected devices</h2>
+<a href="#" style="margin-left: auto; font-size: 13px">Manage</a>
+</div>
+<div style="overflow-x: auto">
+<table style="width: 100%; border-collapse: collapse; font-size: 13px; min-width: 520px">
+<thead>
+<tr style="text-align: left; color: #8D9196; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em">
+<th style="padding: 8px 8px 8px 0; font-weight: 600">Device</th>
+<th style="padding: 8px; font-weight: 600">Client</th>
+<th style="padding: 8px; font-weight: 600">User</th>
+<th style="padding: 8px; font-weight: 600">Last sync</th>
+<th style="padding: 8px 0 8px 8px; font-weight: 600">Status</th>
+</tr>
+</thead>
+<tbody>
+<sc-for list="{{devices}}" as="d" hint-placeholder-count="5">
+<tr style="border-top: 1px solid #26292C">
+<td style="padding: 11px 8px 11px 0; font-weight: 500">{{d.name}}</td>
+<td style="padding: 11px 8px; color: #C9CBCE">{{d.client}}</td>
+<td style="padding: 11px 8px; color: #C9CBCE">{{d.user}}</td>
+<td style="padding: 11px 8px; color: #A4A8AC; font-family: 'IBM Plex Mono', monospace; font-size: 12px">{{d.last}}</td>
+<td style="padding: 11px 0 11px 8px"><span style="{{d.pill}}">{{d.status}}</span></td>
+</tr>
+</sc-for>
+</tbody>
+</table>
+</div>
+</section>
+
+<section aria-labelledby="st-h" style="flex: 1 1 280px; min-width: 0; background: #17191B; border: 1px solid #26292C; border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 14px">
+<h2 id="st-h" style="margin: 0; font-family: Sora, sans-serif; font-size: 16px; font-weight: 600">Storage</h2>
+<div style="display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: #2C3033">
+<div style="width: 48%; background: {{accent}}"></div>
+<div style="width: 9%; background: #5FB3E8"></div>
+<div style="width: 5%; background: #B9BDC1"></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px; font-size: 13px">
+<div style="display: flex; align-items: center; gap: 8px"><span style="width: 10px; height: 10px; border-radius: 2px; background: {{accent}}"></span>Originals<span style="margin-left: auto; font-family: 'IBM Plex Mono', monospace">960 GB</span></div>
+<div style="display: flex; align-items: center; gap: 8px"><span style="width: 10px; height: 10px; border-radius: 2px; background: #5FB3E8"></span>Videos<span style="margin-left: auto; font-family: 'IBM Plex Mono', monospace">180 GB</span></div>
+<div style="display: flex; align-items: center; gap: 8px"><span style="width: 10px; height: 10px; border-radius: 2px; background: #B9BDC1"></span>Thumbnails &amp; cache<span style="margin-left: auto; font-family: 'IBM Plex Mono', monospace">100 GB</span></div>
+<div style="display: flex; align-items: center; gap: 8px; color: #A4A8AC"><span style="width: 10px; height: 10px; border-radius: 2px; background: #2C3033; border: 1px solid #4A4F54; box-sizing: border-box"></span>Free<span style="margin-left: auto; font-family: 'IBM Plex Mono', monospace">760 GB</span></div>
+</div>
+<div style="font-size: 12px; color: #8D9196; border-top: 1px solid #26292C; padding-top: 12px">Volume <span style="font-family: 'IBM Plex Mono', monospace; color: #C9CBCE">/data/photos</span> · 2 TB</div>
+</section>
+</div>
+
+<section aria-labelledby="jobs-h" style="background: #17191B; border: 1px solid #26292C; border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; align-items: center">
+<h2 id="jobs-h" style="margin: 0; font-family: Sora, sans-serif; font-size: 16px; font-weight: 600">Background jobs</h2>
+<button type="button" style="margin-left: auto; height: 34px; padding: 0 12px; border-radius: 8px; background: transparent; border: 1px solid #2C3033; color: #C9CBCE; font: inherit; font-size: 13px">Pause all</button>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px">
+<sc-for list="{{jobs}}" as="j" hint-placeholder-count="3">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; font-size: 13px"><span style="font-weight: 500">{{j.name}}</span><span style="margin-left: auto; font-family: 'IBM Plex Mono', monospace; color: #A4A8AC">{{j.pct}}</span></div>
+<div style="height: 6px; border-radius: 3px; background: #2C3033; overflow: hidden"><div style="{{j.bar}}"></div></div>
+<div style="font-size: 12px; color: #8D9196">{{j.detail}}</div>
+</div>
+</sc-for>
+</div>
+</section>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#E8A33D","options":["#E8A33D","#5FB3E8","#7FCB8E","#E57B6B"]},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var accent = this.props.accent ?? '#E8A33D';
+    var ok = 'display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 12px; background: #1E3A2A; color: #8FE0AE;';
+    var busy = 'display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 12px; background: #3D2F14; color: #F4C177;';
+    var off = 'display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 12px; background: #2C3033; color: #B9BDC1;';
+    var bar = function (p) { return 'width: ' + p + '%; height: 100%; background: ' + accent + ';'; };
+    return {
+      accent: accent,
+      stats: [
+        { label: 'Photos & videos', value: '48,212', sub: '+312 this week' },
+        { label: 'Storage used', value: '1.24 TB', sub: '62% of 2 TB' },
+        { label: 'Users', value: '4', sub: '1 admin · 3 members' },
+        { label: 'Devices online', value: '5 / 7', sub: 'Desktop and mobile clients' }
+      ],
+      devices: [
+        { name: 'Pixel 9 Pro', client: 'Android 2.1', user: 'Alex', last: '2 min ago', status: 'Backing up', pill: busy },
+        { name: 'iPhone 16', client: 'iOS 2.1', user: 'Jordan', last: '18 min ago', status: 'Synced', pill: ok },
+        { name: 'Studio PC', client: 'Windows 0.9', user: 'Alex', last: '1 h ago', status: 'Synced', pill: ok },
+        { name: 'MacBook Air', client: 'macOS 0.9', user: 'Sam', last: '3 h ago', status: 'Synced', pill: ok },
+        { name: 'ThinkPad', client: 'Linux 0.9', user: 'Alex', last: '4 days ago', status: 'Offline', pill: off }
+      ],
+      jobs: [
+        { name: 'Thumbnail generation', pct: '82%', bar: bar(82), detail: '256 of 312 new items' },
+        { name: 'Face recognition', pct: '41%', bar: bar(41), detail: 'Running on CPU · 3 workers' },
+        { name: 'Nightly backup to external drive', pct: 'Queued', bar: bar(0), detail: 'Starts at 2:00 AM' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
