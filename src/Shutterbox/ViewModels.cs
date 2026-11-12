@@ -104,3 +104,12 @@ public sealed class AlbumCard : Observable
     public Visibility NewVisibility => IsNew ? Visibility.Visible : Visibility.Collapsed;
     public Visibility CoverVisibility => IsNew ? Visibility.Collapsed : Visibility.Visible;
 }
+
+/// <summary>
+/// The window's root panel. Unlike a plain Grid it doesn't clip itself when it's laid out bigger than the window,
+/// which only happens in the self-test (it lays the app out at 1440×900 on the build machine's small screen).
+/// </summary>
+public sealed class RootPanel : System.Windows.Controls.Grid
+{
+    protected override Geometry GetLayoutClip(Size layoutSlotSize) => App.IsSelfTest ? null : base.GetLayoutClip(layoutSlotSize);
+}

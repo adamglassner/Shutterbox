@@ -97,7 +97,7 @@
         </DataTemplate>
     </Window.Resources>
 
-    <Grid x:Name="RootGrid">
+    <local:RootPanel x:Name="RootGrid">
         <!-- ===================================================== main layer -->
         <Grid x:Name="MainLayer">
             <Grid.ColumnDefinitions>
@@ -508,5 +508,5 @@
                 <Button x:Name="ToastAction" Style="{StaticResource LinkButton}" Margin="18,0,0,0" FontWeight="SemiBold" Click="ToastAction_Click" Visibility="Collapsed"/>
             </StackPanel>
         </Border>
-    </Grid>
+    </local:RootPanel>
 </Window>
