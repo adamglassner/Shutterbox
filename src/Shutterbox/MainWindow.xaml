@@ -1,0 +1,506 @@
+<Window x:Class="Shutterbox.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Shutterbox"
+        Title="Shutterbox" Style="{StaticResource AppWindow}"
+        Width="1360" Height="860" MinWidth="820" MinHeight="540"
+        Icon="/Assets/shutterbox.ico" AllowDrop="True"
+        PreviewKeyDown="Window_PreviewKeyDown" Closing="Window_Closing"
+        DragOver="Window_DragOver" Drop="Window_Drop">
+
+    <Window.Resources>
+        <!-- Rows of the virtualized timeline -->
+        <Style x:Key="TimelineItem" TargetType="ListBoxItem">
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <ContentPresenter/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="TimelineList" TargetType="ListBox">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBox">
+                        <ScrollViewer x:Name="sv" Padding="{TemplateBinding Padding}" Focusable="False" CanContentScroll="True"
+                                      HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                            <ItemsPresenter/>
+                        </ScrollViewer>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <DataTemplate DataType="{x:Type local:HeaderRow}">
+            <Grid Height="{Binding Height}" Background="Transparent">
+                <DockPanel VerticalAlignment="Bottom" Margin="0,0,4,10">
+                    <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" Content="Select" Margin="14,0,0,0"
+                            Click="GroupSelect_Click" ToolTip="Select every photo in this group"/>
+                    <TextBlock DockPanel.Dock="Right" Text="{Binding CountText}" FontSize="12" Foreground="{DynamicResource TextTertiary}" VerticalAlignment="Bottom"/>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding Title}" FontFamily="{DynamicResource DisplayFont}" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Bottom"/>
+                        <TextBlock Text="{Binding Subtitle}" FontSize="13" Foreground="{DynamicResource TextSecondary}" Margin="10,0,0,1" VerticalAlignment="Bottom"
+                                   TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+                </DockPanel>
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type local:PhotoRow}">
+            <ItemsControl ItemsSource="{Binding Items}" Height="{Binding Height}" Focusable="False">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Tag="tile" Width="{Binding TileSize}" Height="{Binding TileSize}" Margin="0,0,4,0" CornerRadius="4"
+                                Background="{DynamicResource TileBg}" Cursor="Hand" RenderOptions.BitmapScalingMode="HighQuality"
+                                MouseLeftButtonDown="Tile_MouseLeftButtonDown" MouseLeftButtonUp="Tile_MouseLeftButtonUp"
+                                MouseMove="Tile_MouseMove" MouseRightButtonUp="Tile_MouseRightButtonUp" ToolTipService.InitialShowDelay="900">
+                            <Grid>
+                                <Border CornerRadius="4">
+                                    <Border.Background>
+                                        <ImageBrush ImageSource="{Binding Thumb}" Stretch="UniformToFill"/>
+                                    </Border.Background>
+                                </Border>
+                                <TextBlock Text="&#xE783;" FontFamily="{StaticResource IconFont}" FontSize="18" Foreground="{DynamicResource TextTertiary}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding FailedVisibility}"/>
+                                <TextBlock Text="&#xEB52;" FontFamily="{StaticResource IconFont}" FontSize="13" Foreground="White"
+                                           HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="7,0,0,6" Visibility="{Binding FavoriteVisibility}">
+                                    <TextBlock.Effect>
+                                        <DropShadowEffect BlurRadius="6" ShadowDepth="0" Opacity="0.8"/>
+                                    </TextBlock.Effect>
+                                </TextBlock>
+                                <Border CornerRadius="4" BorderThickness="3" BorderBrush="{DynamicResource Accent}" Visibility="{Binding SelectedVisibility}"/>
+                                <Border Width="22" Height="22" CornerRadius="11" Background="{DynamicResource Accent}" HorizontalAlignment="Left"
+                                        VerticalAlignment="Top" Margin="7" Visibility="{Binding SelectedVisibility}">
+                                    <TextBlock Text="&#xE73E;" FontFamily="{StaticResource IconFont}" FontSize="12" Foreground="{DynamicResource AccentText}"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid>
+        <!-- ===================================================== main layer -->
+        <Grid x:Name="MainLayer">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="252"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- ============ Sidebar ============ -->
+            <Border Background="{DynamicResource SidebarBg}" BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,1,0">
+                <DockPanel Margin="14,18,14,14">
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="8,0,0,22">
+                        <Viewbox Width="30" Height="30">
+                            <Canvas Width="32" Height="32">
+                                <Rectangle Canvas.Left="3" Canvas.Top="7" Width="26" Height="20" RadiusX="4" RadiusY="4"
+                                           Stroke="{DynamicResource Accent}" StrokeThickness="2.2"/>
+                                <Ellipse Canvas.Left="10.5" Canvas.Top="11.5" Width="11" Height="11" Stroke="{DynamicResource Accent}" StrokeThickness="2.2"/>
+                                <Rectangle Canvas.Left="9" Canvas.Top="3.5" Width="9" Height="4" RadiusX="1.5" RadiusY="1.5" Fill="{DynamicResource Accent}"/>
+                            </Canvas>
+                        </Viewbox>
+                        <TextBlock Text="Shutterbox" FontFamily="{DynamicResource DisplayFont}" FontSize="19" FontWeight="Bold"
+                                   Margin="10,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <StackPanel DockPanel.Dock="Bottom">
+                        <RadioButton x:Name="NavSettings" Style="{StaticResource NavItem}" Tag="settings" Checked="Nav_Checked">
+                            <DockPanel>
+                                <TextBlock Style="{StaticResource NavIcon}" Text="&#xE713;"/>
+                                <TextBlock Text="Settings" VerticalAlignment="Center"/>
+                            </DockPanel>
+                        </RadioButton>
+                        <Border x:Name="LibraryCard" Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource ControlBorder}"
+                                BorderThickness="1" CornerRadius="12" Padding="14,12" Margin="0,10,0,0">
+                            <StackPanel>
+                                <DockPanel>
+                                    <Ellipse x:Name="CardDot" Width="8" Height="8" Fill="{DynamicResource Success}" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="CardStatus" DockPanel.Dock="Right" FontSize="11" Foreground="{DynamicResource TextTertiary}"
+                                               VerticalAlignment="Center" Text="up to date"/>
+                                    <TextBlock Text="This PC" FontWeight="SemiBold" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <ProgressBar x:Name="CardProgress" Style="{StaticResource ProgressThin}" Margin="0,10,0,0" Maximum="1" Value="0"/>
+                                <TextBlock x:Name="CardText" FontSize="12" Foreground="{DynamicResource TextSecondary}" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                                <TextBlock Text="Server sync comes in a later version." FontSize="11.5" Foreground="{DynamicResource TextTertiary}"
+                                           Margin="0,4,0,0" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
+                        <StackPanel>
+                            <TextBlock Text="LIBRARY" Style="{StaticResource SectionLabel}"/>
+                            <RadioButton x:Name="NavPhotos" Style="{StaticResource NavItem}" Tag="photos" Checked="Nav_Checked">
+                                <DockPanel>
+                                    <TextBlock Style="{StaticResource NavIcon}" Text="&#xE91B;"/>
+                                    <TextBlock x:Name="CountPhotos" Style="{StaticResource NavCount}"/>
+                                    <TextBlock Text="Photos" VerticalAlignment="Center"/>
+                                </DockPanel>
+                            </RadioButton>
+                            <RadioButton x:Name="NavAlbums" Style="{StaticResource NavItem}" Tag="albums" Checked="Nav_Checked">
+                                <DockPanel>
+                                    <TextBlock Style="{StaticResource NavIcon}" Text="&#xE8B9;"/>
+                                    <TextBlock x:Name="CountAlbums" Style="{StaticResource NavCount}"/>
+                                    <TextBlock Text="Albums" VerticalAlignment="Center"/>
+                                </DockPanel>
+                            </RadioButton>
+                            <RadioButton x:Name="NavFavorites" Style="{StaticResource NavItem}" Tag="favorites" Checked="Nav_Checked">
+                                <DockPanel>
+                                    <TextBlock Style="{StaticResource NavIcon}" Text="&#xEB51;"/>
+                                    <TextBlock x:Name="CountFavorites" Style="{StaticResource NavCount}"/>
+                                    <TextBlock Text="Favorites" VerticalAlignment="Center"/>
+                                </DockPanel>
+                            </RadioButton>
+                            <RadioButton x:Name="NavRecent" Style="{StaticResource NavItem}" Tag="recent" Checked="Nav_Checked">
+                                <DockPanel>
+                                    <TextBlock Style="{StaticResource NavIcon}" Text="&#xE823;"/>
+                                    <TextBlock x:Name="CountRecent" Style="{StaticResource NavCount}"/>
+                                    <TextBlock Text="Recently added" VerticalAlignment="Center"/>
+                                </DockPanel>
+                            </RadioButton>
+                            <RadioButton x:Name="NavTrash" Style="{StaticResource NavItem}" Tag="trash" Checked="Nav_Checked">
+                                <DockPanel>
+                                    <TextBlock Style="{StaticResource NavIcon}" Text="&#xE74D;"/>
+                                    <TextBlock x:Name="CountTrash" Style="{StaticResource NavCount}"/>
+                                    <TextBlock Text="Trash" VerticalAlignment="Center"/>
+                                </DockPanel>
+                            </RadioButton>
+
+                            <DockPanel Margin="0,20,0,4">
+                                <Button DockPanel.Dock="Right" Style="{StaticResource SmallIconButton}" Content="&#xE710;"
+                                        Click="NewAlbum_Click" ToolTip="New album"/>
+                                <TextBlock Text="ALBUMS" Style="{StaticResource SectionLabel}" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                            </DockPanel>
+                            <StackPanel x:Name="AlbumNav"/>
+                            <TextBlock x:Name="AlbumNavEmpty" Text="Drag photos here after making an album with +." FontSize="12"
+                                       Foreground="{DynamicResource TextTertiary}" TextWrapping="Wrap" Margin="10,2,10,0"/>
+
+                            <DockPanel Margin="0,20,0,4">
+                                <Button DockPanel.Dock="Right" Style="{StaticResource SmallIconButton}" Content="&#xE710;"
+                                        Click="AddFolder_Click" ToolTip="Add a folder to the library"/>
+                                <TextBlock Text="FOLDERS" Style="{StaticResource SectionLabel}" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                            </DockPanel>
+                            <StackPanel x:Name="FolderNav"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+
+            <!-- ============ Content ============ -->
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- Header -->
+                <Border BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,1" Padding="24,14">
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center" Margin="0,0,20,0" MinWidth="110">
+                            <TextBlock x:Name="TitleText" Style="{StaticResource PageTitle}" Text="Photos" TextTrimming="CharacterEllipsis" MaxWidth="320"/>
+                            <TextBlock x:Name="SubtitleText" FontSize="12.5" Foreground="{DynamicResource TextSecondary}"/>
+                        </StackPanel>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border x:Name="ZoomBox" Background="{DynamicResource InputBg}" BorderBrush="{DynamicResource ControlBorder}"
+                                    BorderThickness="1" CornerRadius="10" Padding="2" Margin="0,0,8,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <RadioButton x:Name="ZoomYears" Style="{StaticResource Segment}" GroupName="zoom" Content="Years" Checked="Zoom_Checked"/>
+                                    <RadioButton x:Name="ZoomMonths" Style="{StaticResource Segment}" GroupName="zoom" Content="Months" Checked="Zoom_Checked"/>
+                                    <RadioButton x:Name="ZoomDays" Style="{StaticResource Segment}" GroupName="zoom" Content="Days" IsChecked="True" Checked="Zoom_Checked"/>
+                                </StackPanel>
+                            </Border>
+                            <Button x:Name="SlideshowBtn" Style="{StaticResource ToolButton}" Padding="0" Width="38" ToolTip="Slideshow (F5)" Click="Slideshow_Click">
+                                <TextBlock Text="&#xE768;" FontFamily="{StaticResource IconFont}" FontSize="14"/>
+                            </Button>
+                            <ToggleButton x:Name="InfoToggle" Style="{StaticResource ToolToggle}" Content="&#xE946;" ToolTip="Details panel (I)" Click="InfoToggle_Click"/>
+                            <Button x:Name="ImportBtn" Style="{StaticResource ToolAccentButton}" Margin="0" Click="Import_Click" ToolTip="Import from a camera, phone or folder (Ctrl+I)">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE8B5;" FontFamily="{StaticResource IconFont}" FontSize="14" Margin="0,1,8,0" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Import" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                        <TextBox x:Name="SearchBox" Style="{StaticResource SearchBox}" Tag="Search names, folders, tags, cameras, dates…"
+                                 MaxWidth="460" HorizontalAlignment="Left" MinWidth="160" Width="460" Margin="0,0,12,0"
+                                 TextChanged="Search_TextChanged" PreviewKeyDown="Search_PreviewKeyDown"/>
+                    </DockPanel>
+                </Border>
+
+                <!-- Selection bar -->
+                <Border x:Name="SelectionBar" Grid.Row="1" Visibility="Collapsed" Background="{DynamicResource PanelBg}"
+                        BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,0,1" Padding="20,6">
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Style="{StaticResource BarButton}" Click="ClearSelection_Click" ToolTip="Clear selection (Esc)">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE711;" FontFamily="{StaticResource IconFont}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Text="Clear" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <TextBlock x:Name="SelectionText" VerticalAlignment="Center" FontWeight="SemiBold" Margin="4,0,18,0"/>
+                        <WrapPanel x:Name="SelectionActions" Orientation="Horizontal" VerticalAlignment="Center"/>
+                    </DockPanel>
+                </Border>
+
+                <!-- Body -->
+                <Grid Grid.Row="2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition x:Name="InfoColumn" Width="330"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Grid x:Name="CenterArea">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <Border x:Name="Banner" Visibility="Collapsed" Margin="24,14,24,0" Background="{DynamicResource CardBg}"
+                                BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1" CornerRadius="10" Padding="14,10">
+                            <DockPanel>
+                                <StackPanel x:Name="BannerActions" DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="BannerIcon" FontFamily="{StaticResource IconFont}" FontSize="16" Margin="0,0,12,0"
+                                           VerticalAlignment="Center" Foreground="{DynamicResource Accent}"/>
+                                <TextBlock x:Name="BannerText" TextWrapping="Wrap" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondary}" Margin="0,0,12,0"/>
+                            </DockPanel>
+                        </Border>
+
+                        <ListBox x:Name="Timeline" Grid.Row="1" Style="{StaticResource TimelineList}" Padding="24,0,10,24"
+                                 ItemContainerStyle="{StaticResource TimelineItem}"
+                                 VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                                 VirtualizingPanel.ScrollUnit="Pixel" VirtualizingPanel.CacheLengthUnit="Page" VirtualizingPanel.CacheLength="1,1"
+                                 ScrollViewer.CanContentScroll="True" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 SizeChanged="Timeline_SizeChanged" PreviewMouseLeftButtonDown="Timeline_PreviewMouseLeftButtonDown"/>
+
+                        <ScrollViewer x:Name="AlbumsPage" Grid.Row="1" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" Focusable="False">
+                            <ItemsControl x:Name="AlbumGrid" Margin="24,18,24,24" Focusable="False">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Click="AlbumCard_Click" Margin="0,0,18,22" Cursor="Hand" Focusable="True" AllowDrop="True"
+                                                Drop="AlbumCard_Drop" DragOver="AlbumTarget_DragOver" MouseRightButtonUp="AlbumCard_RightClick">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <StackPanel Width="210" Background="Transparent">
+                                                        <Border x:Name="cover" Height="158" CornerRadius="10" Background="{DynamicResource TileBg}"
+                                                                BorderThickness="2" BorderBrush="Transparent" RenderOptions.BitmapScalingMode="HighQuality">
+                                                            <Grid>
+                                                                <Border CornerRadius="9" Visibility="{Binding CoverVisibility}">
+                                                                    <Border.Background>
+                                                                        <ImageBrush ImageSource="{Binding Cover.Thumb}" Stretch="UniformToFill"/>
+                                                                    </Border.Background>
+                                                                </Border>
+                                                                <TextBlock Text="&#xE710;" FontFamily="{StaticResource IconFont}" FontSize="26"
+                                                                           Foreground="{DynamicResource TextSecondary}" HorizontalAlignment="Center"
+                                                                           VerticalAlignment="Center" Visibility="{Binding NewVisibility}"/>
+                                                            </Grid>
+                                                        </Border>
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Margin="2,10,0,0" TextTrimming="CharacterEllipsis"/>
+                                                        <TextBlock Text="{Binding CountText}" FontSize="12.5" Foreground="{DynamicResource TextSecondary}" Margin="2,2,0,0"/>
+                                                    </StackPanel>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="cover" Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsKeyboardFocused" Value="True">
+                                                            <Setter TargetName="cover" Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                        <ContentControl x:Name="SettingsHost" Grid.Row="1" Visibility="Collapsed" Focusable="False"/>
+
+                        <StackPanel x:Name="EmptyState" Grid.Row="1" Visibility="Collapsed" VerticalAlignment="Center"
+                                    HorizontalAlignment="Center" MaxWidth="560" Margin="24">
+                            <Viewbox Width="72" Height="72" HorizontalAlignment="Center">
+                                <Canvas Width="32" Height="32">
+                                    <Rectangle Canvas.Left="3" Canvas.Top="7" Width="26" Height="20" RadiusX="4" RadiusY="4"
+                                               Stroke="{DynamicResource Accent}" StrokeThickness="1.6"/>
+                                    <Ellipse Canvas.Left="10.5" Canvas.Top="11.5" Width="11" Height="11" Stroke="{DynamicResource Accent}" StrokeThickness="1.6"/>
+                                    <Rectangle Canvas.Left="9" Canvas.Top="3.5" Width="9" Height="4" RadiusX="1.5" RadiusY="1.5" Fill="{DynamicResource Accent}"/>
+                                </Canvas>
+                            </Viewbox>
+                            <TextBlock x:Name="EmptyTitle" Text="Let's find your photos" FontFamily="{DynamicResource DisplayFont}" FontSize="26"
+                                       FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,18,0,0"/>
+                            <TextBlock x:Name="EmptyText" TextWrapping="Wrap" TextAlignment="Center" Foreground="{DynamicResource TextSecondary}"
+                                       Margin="0,10,0,0" FontSize="14.5"
+                                       Text="Shutterbox organizes the pictures already on your PC. Choose the folders it should look in. Your files stay where they are."/>
+                            <StackPanel x:Name="EmptyButtons" Margin="0,24,0,0" HorizontalAlignment="Center">
+                                <Button x:Name="AddPicturesBtn" Style="{StaticResource ToolAccentButton}" Margin="0,0,0,10" Height="42" Click="AddPictures_Click">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE91B;" FontFamily="{StaticResource IconFont}" Margin="0,1,10,0" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="AddPicturesText" Text="Add my Pictures folder" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <Button Style="{StaticResource ToolButton}" Click="AddFolder_Click" Content="Choose a folder…"/>
+                                    <Button Style="{StaticResource ToolButton}" Margin="0" Click="Import_Click" Content="Import from camera or phone…"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- ============ Info panel ============ -->
+                    <Border x:Name="InfoPanel" Grid.Column="1" Background="{DynamicResource PanelBg}" BorderBrush="{DynamicResource Divider}" BorderThickness="1,0,0,0">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
+                            <Grid Margin="20,20,20,24">
+                                <StackPanel x:Name="InfoSingle" Visibility="Collapsed">
+                                    <Border x:Name="PreviewBox" Height="220" CornerRadius="10" Background="{DynamicResource TileBg}" Cursor="Hand"
+                                            MouseLeftButtonUp="Preview_MouseLeftButtonUp" ToolTip="Open (Enter)">
+                                        <Image x:Name="PreviewImage" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" Margin="0"/>
+                                    </Border>
+                                    <TextBlock x:Name="InfoName" FontFamily="{DynamicResource DisplayFont}" FontSize="16" FontWeight="SemiBold"
+                                               Margin="0,16,0,0" TextWrapping="Wrap"/>
+                                    <TextBlock x:Name="InfoDate" Foreground="{DynamicResource TextSecondary}" FontSize="13" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                                    <Grid x:Name="InfoFields" Margin="0,16,0,0"/>
+                                    <TextBox x:Name="CaptionBox" Style="{StaticResource HintBox}" Tag="Add a caption…" Margin="0,16,0,0"
+                                             TextWrapping="Wrap" MaxLength="500" LostKeyboardFocus="CaptionBox_LostKeyboardFocus" KeyDown="CaptionBox_KeyDown"/>
+                                    <TextBlock Text="TAGS" Style="{StaticResource FieldName}" Margin="0,18,0,8"/>
+                                    <WrapPanel x:Name="TagsPanel"/>
+                                    <TextBox x:Name="TagBox" Style="{StaticResource HintBox}" Tag="Add a tag and press Enter" Margin="0,6,0,0"
+                                             MaxLength="60" KeyDown="TagBox_KeyDown"/>
+                                    <TextBlock x:Name="InfoAlbumsLabel" Text="ALBUMS" Style="{StaticResource FieldName}" Margin="0,18,0,8"/>
+                                    <WrapPanel x:Name="InfoAlbums"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,22,0,0">
+                                        <Button Style="{StaticResource ToolButton}" Content="Open" Click="InfoOpen_Click" ToolTip="Open full size (Enter)"/>
+                                        <Button Style="{StaticResource ToolButton}" Content="Edit" Click="InfoEdit_Click" ToolTip="Open in your photo editor"/>
+                                        <Button x:Name="ShareBtn" Style="{StaticResource ToolButton}" Click="InfoShare_Click" ToolTip="Copy, show in File Explorer, open with…">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="Share" VerticalAlignment="Center"/>
+                                                <TextBlock Text="&#xE70D;" FontFamily="{StaticResource IconFont}" FontSize="10" Margin="8,2,0,0" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button x:Name="InfoFavBtn" Style="{StaticResource ToolButton}" Padding="0" Width="42" Margin="0"
+                                                Click="InfoFavorite_Click" ToolTip="Favorite (F)">
+                                            <TextBlock x:Name="InfoFavIcon" Text="&#xEB51;" FontFamily="{StaticResource IconFont}" FontSize="16"/>
+                                        </Button>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <StackPanel x:Name="InfoMulti" Visibility="Collapsed">
+                                    <Grid Height="150">
+                                        <Border x:Name="Stack3" Width="150" Height="112" CornerRadius="8" Background="{DynamicResource TileBg}" RenderTransformOrigin="0.5,0.5" Opacity="0.7">
+                                            <Border.RenderTransform><RotateTransform Angle="-8"/></Border.RenderTransform>
+                                        </Border>
+                                        <Border x:Name="Stack2" Width="150" Height="112" CornerRadius="8" Background="{DynamicResource TileBg}" RenderTransformOrigin="0.5,0.5">
+                                            <Border.RenderTransform><RotateTransform Angle="5"/></Border.RenderTransform>
+                                        </Border>
+                                        <Border x:Name="Stack1" Width="150" Height="112" CornerRadius="8" Background="{DynamicResource TileBg}"/>
+                                    </Grid>
+                                    <TextBlock x:Name="MultiTitle" FontFamily="{DynamicResource DisplayFont}" FontSize="18" FontWeight="SemiBold" Margin="0,16,0,0"/>
+                                    <TextBlock x:Name="MultiText" Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                    <TextBlock Text="ADD A TAG TO ALL" Style="{StaticResource FieldName}" Margin="0,20,0,8"/>
+                                    <TextBox x:Name="MultiTagBox" Style="{StaticResource HintBox}" Tag="Tag and press Enter" MaxLength="60" KeyDown="MultiTagBox_KeyDown"/>
+                                </StackPanel>
+
+                                <StackPanel x:Name="InfoNone">
+                                    <TextBlock Text="Details" FontFamily="{DynamicResource DisplayFont}" FontSize="16" FontWeight="SemiBold"/>
+                                    <TextBlock x:Name="NoneText" Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap" Margin="0,8,0,0"
+                                               Text="Click a photo to see when and where it was taken, the camera settings, tags and albums. Double-click to open it."/>
+                                    <Border Style="{StaticResource Panel}" Margin="0,18,0,0" Padding="14,12">
+                                        <StackPanel>
+                                            <TextBlock Text="KEYBOARD" Style="{StaticResource FieldName}"/>
+                                            <TextBlock x:Name="ShortcutsText" FontSize="12.5" Foreground="{DynamicResource TextSecondary}" Margin="0,8,0,0" LineHeight="21"/>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Grid>
+                        </ScrollViewer>
+                    </Border>
+                </Grid>
+            </Grid>
+        </Grid>
+
+        <!-- ===================================================== viewer -->
+        <Grid x:Name="ViewerLayer" Visibility="Collapsed" Background="{DynamicResource ViewerBg}" Focusable="True"
+              MouseMove="Viewer_MouseMove">
+            <Grid x:Name="ViewerStage" ClipToBounds="True" Background="Transparent" Margin="0,56,0,0"
+                  MouseWheel="ViewerStage_MouseWheel" MouseLeftButtonDown="ViewerStage_MouseLeftButtonDown"
+                  MouseLeftButtonUp="ViewerStage_MouseLeftButtonUp" MouseMove="ViewerStage_MouseMove" SizeChanged="ViewerStage_SizeChanged">
+                <Image x:Name="ViewerFade" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" Opacity="0" Margin="24"/>
+                <Image x:Name="ViewerImage" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" Margin="24" RenderTransformOrigin="0,0">
+                    <Image.RenderTransform>
+                        <TransformGroup>
+                            <ScaleTransform x:Name="ViewerScale" ScaleX="1" ScaleY="1"/>
+                            <TranslateTransform x:Name="ViewerPan"/>
+                        </TransformGroup>
+                    </Image.RenderTransform>
+                </Image>
+                <StackPanel x:Name="ViewerMessage" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420">
+                    <TextBlock Text="&#xE783;" FontFamily="{StaticResource IconFont}" FontSize="36" Foreground="{DynamicResource ViewerTextSecondary}" HorizontalAlignment="Center"/>
+                    <TextBlock x:Name="ViewerMessageText" Foreground="{DynamicResource ViewerText}" TextWrapping="Wrap" TextAlignment="Center" Margin="0,12,0,0" FontSize="14"/>
+                </StackPanel>
+            </Grid>
+
+            <Grid x:Name="ViewerTopBar" VerticalAlignment="Top" Height="56" Background="#E6050506">
+                <DockPanel Margin="10,0">
+                    <Button DockPanel.Dock="Left" Style="{StaticResource ViewerButton}" Content="&#xE72B;" Click="ViewerClose_Click" ToolTip="Back to the library (Esc)"/>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock x:Name="ViewerZoomText" Foreground="{DynamicResource ViewerTextSecondary}" FontSize="12.5" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <Button Style="{StaticResource ViewerButton}" Content="&#xE71F;" Click="ViewerZoomOut_Click" ToolTip="Zoom out (-)"/>
+                        <Button Style="{StaticResource ViewerButton}" Content="&#xE8A3;" Click="ViewerZoomIn_Click" ToolTip="Zoom in (+)"/>
+                        <Button x:Name="ViewerFavBtn" Style="{StaticResource ViewerButton}" Content="&#xEB51;" Click="ViewerFavorite_Click" ToolTip="Favorite (F)"/>
+                        <Button Style="{StaticResource ViewerButton}" Content="&#xE7AD;" Click="ViewerRotate_Click" ToolTip="Rotate (R)"/>
+                        <Button Style="{StaticResource ViewerButton}" Content="&#xE70F;" Click="ViewerEdit_Click" ToolTip="Edit in your photo editor"/>
+                        <Button Style="{StaticResource ViewerButton}" Content="&#xE72D;" Click="ViewerShare_Click" ToolTip="Share"/>
+                        <Button x:Name="ViewerPlayBtn" Style="{StaticResource ViewerButton}" Content="&#xE768;" Click="ViewerPlay_Click" ToolTip="Slideshow (Space)"/>
+                        <Button Style="{StaticResource ViewerButton}" Content="&#xE74D;" Click="ViewerTrash_Click" ToolTip="Move to Trash (Delete)"/>
+                    </StackPanel>
+                    <StackPanel VerticalAlignment="Center" Margin="12,0">
+                        <TextBlock x:Name="ViewerTitle" Foreground="{DynamicResource ViewerText}" FontWeight="SemiBold" FontSize="14.5" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock x:Name="ViewerSub" Foreground="{DynamicResource ViewerTextSecondary}" FontSize="12.5" TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+                </DockPanel>
+            </Grid>
+
+            <Button x:Name="ViewerPrevBtn" Style="{StaticResource ViewerArrow}" Content="&#xE76B;" HorizontalAlignment="Left" VerticalAlignment="Center"
+                    Margin="20,56,0,0" Click="ViewerPrev_Click" ToolTip="Previous (Left arrow)"/>
+            <Button x:Name="ViewerNextBtn" Style="{StaticResource ViewerArrow}" Content="&#xE76C;" HorizontalAlignment="Right" VerticalAlignment="Center"
+                    Margin="0,56,20,0" Click="ViewerNext_Click" ToolTip="Next (Right arrow)"/>
+            <Border x:Name="ViewerCounterBox" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,18" Background="#99000000"
+                    CornerRadius="14" Padding="12,5">
+                <TextBlock x:Name="ViewerCounter" Foreground="{DynamicResource ViewerText}" FontSize="12.5"/>
+            </Border>
+        </Grid>
+
+        <!-- ===================================================== toast -->
+        <Border x:Name="Toast" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,28"
+                Background="{DynamicResource MenuBg}" BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1"
+                CornerRadius="12" Padding="16,10" MaxWidth="640">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="18" ShadowDepth="2" Opacity="0.35"/>
+            </Border.Effect>
+            <StackPanel Orientation="Horizontal">
+                <TextBlock x:Name="ToastText" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="480"/>
+                <Button x:Name="ToastAction" Style="{StaticResource LinkButton}" Margin="18,0,0,0" FontWeight="SemiBold" Click="ToastAction_Click" Visibility="Collapsed"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

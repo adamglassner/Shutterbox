@@ -1,0 +1,132 @@
+<UserControl x:Class="Shutterbox.Views.SettingsPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
+        <StackPanel Margin="24,18,24,32" MaxWidth="760" HorizontalAlignment="Left">
+
+            <!-- Appearance -->
+            <Border Style="{StaticResource Panel}" Margin="0,0,0,14">
+                <StackPanel>
+                    <TextBlock Text="Appearance" Style="{StaticResource SectionHeader}" Margin="0,0,0,12"/>
+                    <TextBlock Text="Theme" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,8"/>
+                    <StackPanel Orientation="Horizontal">
+                        <RadioButton x:Name="ThemeDark" Style="{StaticResource ChoicePill}" GroupName="theme" Content="Dark" Checked="Theme_Checked"/>
+                        <RadioButton x:Name="ThemeLight" Style="{StaticResource ChoicePill}" GroupName="theme" Content="Light" Checked="Theme_Checked"/>
+                        <RadioButton x:Name="ThemeSystem" Style="{StaticResource ChoicePill}" GroupName="theme" Content="Same as Windows" Checked="Theme_Checked"/>
+                    </StackPanel>
+                    <TextBlock Text="Accent colour" Foreground="{DynamicResource TextSecondary}" Margin="0,16,0,8"/>
+                    <StackPanel x:Name="AccentPanel" Orientation="Horizontal"/>
+                    <TextBlock Text="Thumbnail size" Foreground="{DynamicResource TextSecondary}" Margin="0,16,0,8"/>
+                    <StackPanel Orientation="Horizontal">
+                        <RadioButton x:Name="DensityCompact" Style="{StaticResource ChoicePill}" GroupName="density" Content="Small" Checked="Density_Checked"/>
+                        <RadioButton x:Name="DensityComfortable" Style="{StaticResource ChoicePill}" GroupName="density" Content="Medium" Checked="Density_Checked"/>
+                        <RadioButton x:Name="DensityLarge" Style="{StaticResource ChoicePill}" GroupName="density" Content="Large" Checked="Density_Checked"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Library folders -->
+            <Border Style="{StaticResource Panel}" Margin="0,0,0,14">
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,4">
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <Button Style="{StaticResource ToolButton}" Content="Rescan" Click="Rescan_Click" ToolTip="Look for new, changed and deleted photos (Ctrl+R)"/>
+                            <Button Style="{StaticResource ToolAccentButton}" Margin="0" Content="Add folder…" Click="AddFolder_Click"/>
+                        </StackPanel>
+                        <TextBlock Text="Library folders" Style="{StaticResource SectionHeader}" Margin="0" VerticalAlignment="Center"/>
+                    </DockPanel>
+                    <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,12"
+                               Text="Shutterbox shows the pictures in these folders and their subfolders. Removing a folder only removes it from Shutterbox; your files aren't touched."/>
+                    <StackPanel x:Name="FolderList"/>
+                    <TextBlock x:Name="NoFolders" Text="No folders yet." Foreground="{DynamicResource TextTertiary}" Margin="0,4,0,4"/>
+                    <CheckBox x:Name="WatchBox" Content="Notice new and deleted photos while Shutterbox is open" Margin="0,14,0,0" Click="Behaviour_Click"/>
+                    <CheckBox x:Name="ScanStartBox" Content="Check folders for changes when Shutterbox starts" Margin="0,8,0,0" Click="Behaviour_Click"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Import -->
+            <Border Style="{StaticResource Panel}" Margin="0,0,0,14">
+                <StackPanel>
+                    <TextBlock Text="Importing" Style="{StaticResource SectionHeader}" Margin="0,0,0,8"/>
+                    <TextBlock Text="Imported photos are copied into" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,8"/>
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Style="{StaticResource ToolButton}" Margin="8,0,0,0" Content="Change…" Click="ImportFolder_Click"/>
+                        <TextBox x:Name="ImportFolderBox" Style="{StaticResource HintBox}" IsReadOnly="True" Height="38"/>
+                    </DockPanel>
+                    <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0"
+                               Text="In folders by year and day, like 2026\2026-10-14. You can change this, and whether duplicates are skipped, each time you import."/>
+                </StackPanel>
+            </Border>
+
+            <!-- Viewer -->
+            <Border Style="{StaticResource Panel}" Margin="0,0,0,14">
+                <StackPanel>
+                    <TextBlock Text="Slideshow" Style="{StaticResource SectionHeader}" Margin="0,0,0,8"/>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Show each photo for" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondary}" Margin="0,0,12,0"/>
+                        <ComboBox x:Name="SlideBox" Width="140" SelectionChanged="SlideBox_SelectionChanged">
+                            <ComboBoxItem Content="3 seconds" Tag="3"/>
+                            <ComboBoxItem Content="5 seconds" Tag="5"/>
+                            <ComboBoxItem Content="8 seconds" Tag="8"/>
+                            <ComboBoxItem Content="12 seconds" Tag="12"/>
+                            <ComboBoxItem Content="20 seconds" Tag="20"/>
+                        </ComboBox>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Storage -->
+            <Border Style="{StaticResource Panel}" Margin="0,0,0,14">
+                <StackPanel>
+                    <TextBlock Text="Storage" Style="{StaticResource SectionHeader}" Margin="0,0,0,8"/>
+                    <TextBlock x:Name="StorageText" Style="{StaticResource Hint}"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <Button Style="{StaticResource ToolButton}" Content="Clear thumbnail cache" Click="ClearCache_Click"
+                                ToolTip="Thumbnails are made again as you scroll. Your photos, albums and tags aren't affected."/>
+                        <Button Style="{StaticResource ToolButton}" Content="Open data folder" Click="OpenData_Click"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Server -->
+            <Border Style="{StaticResource Panel}" Margin="0,0,0,14">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Left" Text="&#xE968;" FontFamily="{StaticResource IconFont}" FontSize="22" Margin="0,2,16,0"
+                               Foreground="{DynamicResource Accent}" VerticalAlignment="Top"/>
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Shutterbox Server" FontSize="15" FontWeight="SemiBold"/>
+                            <Border Background="{DynamicResource AccentSoft}" CornerRadius="9" Padding="8,2" Margin="10,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="Coming later" FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource Text}"/>
+                            </Border>
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
+                                   Text="A later version adds a server you run on your own PC or NAS, so you can back up your library, sync it between computers and see it on your phone. For now everything stays on this PC."/>
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <!-- About -->
+            <Border Style="{StaticResource Panel}">
+                <StackPanel>
+                    <DockPanel>
+                        <Image Source="/Assets/shutterbox-256.png" Width="56" Height="56" Margin="0,0,16,0" RenderOptions.BitmapScalingMode="HighQuality"/>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock x:Name="VersionText" FontSize="17" FontWeight="SemiBold" FontFamily="{DynamicResource DisplayFont}"/>
+                            <TextBlock Text="Photo organizer for Windows · © 2026 Bytehawk Studio" Foreground="{DynamicResource TextSecondary}" Margin="0,2,0,0"/>
+                        </StackPanel>
+                    </DockPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                        <Button Style="{StaticResource ToolButton}" Content="Project on GitHub" Click="GitHub_Click"/>
+                        <Button x:Name="ChangesBtn" Style="{StaticResource ToolButton}" Content="What's new" Click="Changes_Click"/>
+                    </StackPanel>
+                    <Border x:Name="ChangesBox" Visibility="Collapsed" Margin="0,14,0,0" Background="{DynamicResource InputBg}" CornerRadius="8" Padding="14,10" MaxHeight="320">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <TextBlock x:Name="ChangesText" TextWrapping="Wrap" FontSize="12.5" Foreground="{DynamicResource TextSecondary}"/>
+                        </ScrollViewer>
+                    </Border>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,191 @@
+name: Build, test and release
+
+# - Every push / pull request: build the exe, portable zip and installer on Windows,
+#   run Shutterbox's self-test, test the installer and take screenshots.
+# - Push to main with a <Version> in the .csproj that has no release yet (or push a tag like v1.0.1):
+#   the same, then publish GitHub Release v<version> with the Setup .exe and the portable zip.
+#   The Bytehawk Studio Launcher reads this repo's latest release to install and update Shutterbox.
+on:
+  push:
+    branches: ['**']
+    tags: ['v*.*.*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Work out version
+        id: ver
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF -like 'refs/tags/v*') {
+            $v = $env:GITHUB_REF_NAME.Substring(1)
+          } else {
+            $v = ([xml](Get-Content src/Shutterbox/Shutterbox.csproj)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
+          }
+          "version=$v" >> $env:GITHUB_OUTPUT
+          # Release when a tag was pushed, or when main has a version that hasn't been released yet
+          $release = 'false'
+          if ($env:GITHUB_REF -like 'refs/tags/v*') { $release = 'true' }
+          elseif ($env:GITHUB_EVENT_NAME -eq 'push' -and $env:GITHUB_REF -eq 'refs/heads/main') {
+            git fetch --tags --quiet
+            if (-not (git tag -l "v$v")) { $release = 'true' }
+          }
+          "release=$release" >> $env:GITHUB_OUTPUT
+          Write-Host "Version $v, release: $release"
+
+      - name: Install Inno Setup if needed
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+
+      - name: Build exe, zip and installer
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP 'build.log'
+          $ok = $true
+          try { ./build.ps1 -Version ${{ steps.ver.outputs.version }} *>&1 | Tee-Object -FilePath $log } catch { $ok = $false; "$_" | Add-Content $log }
+          if (-not $ok -or $LASTEXITCODE -ne 0) {
+            $errs = Select-String -Path $log -Pattern ': error |error MSB|failed|exception' | Select-Object -First 60
+            if (-not $errs) { $errs = Get-Content $log -Tail 40 }
+            foreach ($e in $errs) { Write-Host "::error::$(($e -replace '%','%25') -replace '\r?\n',' ')" }
+            exit 1
+          }
+
+      - name: Self-test
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force screenshots | Out-Null
+          $out = Join-Path $env:RUNNER_TEMP 'selftest.txt'
+          $shots = Join-Path $PWD 'screenshots'
+          $p = Start-Process dist/Shutterbox.exe -ArgumentList '--self-test', "`"$out`"", "`"$shots`"" -PassThru
+          if (-not $p.WaitForExit(480000)) { Stop-Process -Id $p.Id -Force; Write-Host '::error::Self-test timed out' }
+          if (Test-Path $out) { $lines = Get-Content $out; $lines | Write-Host } else { $lines = @('(no output file)') }
+          "## Self-test`n``````n$($lines -join "`n")`n``````" >> $env:GITHUB_STEP_SUMMARY
+          foreach ($l in $lines | Where-Object { $_ -like 'FAIL*' }) { Write-Host "::error::$(($l -replace '%','%25') -replace '\r?\n',' ')" }
+          $err = Join-Path $env:APPDATA 'Shutterbox\error.log'
+          if (Test-Path $err) { Get-Content $err | Write-Host; Write-Host '::error::error.log was written' ; exit 1 }
+          if ($p.ExitCode -ne 0) { throw "Self-test failed (exit code $($p.ExitCode))" }
+
+      - name: Share screenshots on the ci-shots branch (work branches only)
+        if: always() && github.event_name == 'push' && github.ref != 'refs/heads/main'
+        shell: pwsh
+        run: |
+          if (-not (Test-Path screenshots)) { exit 0 }
+          $d = Join-Path $env:RUNNER_TEMP 'shots'
+          New-Item -ItemType Directory -Force $d | Out-Null
+          Copy-Item screenshots/* $d
+          $out = Join-Path $env:RUNNER_TEMP 'selftest.txt'
+          if (Test-Path $out) { Copy-Item $out $d }
+          Set-Location $d
+          git init -q
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Screenshots from ${{ github.sha }}"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" HEAD:refs/heads/ci-shots
+
+      - name: Installer test (silent install, run, uninstall)
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem dist/Shutterbox-*-Setup.exe | Select-Object -First 1
+          # 1. Default install: Program Files, all users (the runner is an administrator)
+          $p = Start-Process $setup.FullName -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', '/TASKS=desktopicon' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Setup exited with $($p.ExitCode)" }
+          $exe = Join-Path $env:ProgramFiles 'Shutterbox\Shutterbox.exe'
+          if (-not (Test-Path $exe)) { throw 'Shutterbox.exe not installed to Program Files' }
+          $lnk = Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs\Shutterbox.lnk'
+          if (-not (Test-Path $lnk)) { throw 'Start Menu shortcut missing' }
+          $sh = (New-Object -ComObject WScript.Shell).CreateShortcut($lnk)
+          if ($sh.TargetPath -ne $exe) { throw "Start Menu shortcut points to $($sh.TargetPath)" }
+          if (-not (Test-Path (Join-Path $env:PUBLIC 'Desktop\Shutterbox.lnk'))) { throw 'Desktop shortcut missing' }
+          $key = Get-ChildItem 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall' | Get-ItemProperty | Where-Object { $_.DisplayName -like 'Shutterbox*' } | Select-Object -First 1
+          if (-not $key) { throw 'No uninstall entry' }
+          Write-Host "Uninstall entry: $($key.DisplayName) / $($key.DisplayVersion) / $($key.Publisher)"
+          if ($key.DisplayVersion -ne '${{ steps.ver.outputs.version }}') { throw "Wrong version in Apps: $($key.DisplayVersion)" }
+          if ($key.Publisher -ne 'Bytehawk Studio') { throw "Wrong publisher: $($key.Publisher)" }
+          Add-Type -AssemblyName System.Drawing
+          $ico = [System.Drawing.Icon]::ExtractAssociatedIcon($exe)
+          if (-not $ico) { throw 'No icon in Shutterbox.exe' }
+          New-Item -ItemType Directory -Force screenshots | Out-Null
+          $ico.ToBitmap().Save((Join-Path $PWD 'screenshots/exe-icon.png'))
+          $app = Start-Process $exe -PassThru
+          Start-Sleep -Seconds 8
+          if ($app.HasExited) { throw "Installed app exited during startup ($($app.ExitCode))" }
+          Stop-Process -Id $app.Id -Force
+          Start-Sleep -Seconds 2
+          $u = Start-Process (Join-Path $env:ProgramFiles 'Shutterbox\unins000.exe') -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait -PassThru
+          Start-Sleep -Seconds 4
+          if (Test-Path $exe) { throw 'Uninstall left Shutterbox.exe behind' }
+          if (Test-Path $lnk) { throw 'Uninstall left the Start Menu shortcut behind' }
+          # 2. Launcher-style install into a custom folder, no shortcuts
+          $dir = Join-Path $env:RUNNER_TEMP 'shutterbox-launcher'
+          $p = Start-Process $setup.FullName -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', '/NOICONS', "/DIR=`"$dir`"" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Launcher-style setup exited with $($p.ExitCode)" }
+          if (-not (Test-Path (Join-Path $dir 'Shutterbox.exe'))) { throw 'Launcher-style install missing Shutterbox.exe' }
+          if (Test-Path $lnk) { throw '/NOICONS still created a Start Menu shortcut' }
+          Start-Process (Join-Path $dir 'unins000.exe') -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait | Out-Null
+          Start-Sleep -Seconds 3
+          if (Test-Path (Join-Path $dir 'Shutterbox.exe')) { throw 'Launcher-style uninstall left Shutterbox.exe behind' }
+          "## Installer test`n- Program Files install, Start Menu + desktop shortcuts, uninstall entry (v${{ steps.ver.outputs.version }}, Bytehawk Studio), icon, start, clean uninstall: OK`n- Launcher-style silent install to a custom folder and uninstall: OK" >> $env:GITHUB_STEP_SUMMARY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Shutterbox-${{ steps.ver.outputs.version }}
+          path: |
+            dist/Shutterbox-*-Setup.exe
+            dist/Shutterbox-*-win-x64.zip
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots
+          path: screenshots/
+          if-no-files-found: ignore
+
+      - name: Release notes from CHANGELOG.md
+        if: steps.ver.outputs.release == 'true'
+        shell: pwsh
+        run: |
+          $v = '${{ steps.ver.outputs.version }}'
+          $lines = Get-Content CHANGELOG.md
+          $start = [Array]::FindIndex($lines, [Predicate[string]]{ param($l) $l -match "^## $([regex]::Escape($v))( |$)" })
+          if ($start -lt 0) { throw "CHANGELOG.md has no '## $v' section. Add one before releasing." }
+          $section = @()
+          for ($i = $start + 1; $i -lt $lines.Count -and $lines[$i] -notmatch '^## '; $i++) { $section += $lines[$i] }
+          $notes = @(
+            "Shutterbox $v, a photo organizer for Windows 10/11 (x64), by Bytehawk Studio.", '',
+            "## What's new", ($section -join "`n").Trim(), '',
+            '## Downloads',
+            "- **Shutterbox-$v-Setup.exe**: installer. Installs to Program Files with a Start Menu shortcut, an optional desktop shortcut and an uninstaller. Choose ""Install for me only"" on the first page if you don't have administrator rights.",
+            "- **Shutterbox-$v-win-x64.zip**: portable. Unzip and run ``Shutterbox.exe``. No install or .NET needed. Your library is kept in %APPDATA%\Shutterbox, so both downloads share it.", '',
+            'Also available in the **Bytehawk Studio Launcher**, which installs Shutterbox and keeps it up to date.', '',
+            'Full history: [CHANGELOG.md](https://github.com/adamglassner/shutterbox/blob/main/CHANGELOG.md)')
+          $notes -join "`n" | Set-Content -Encoding utf8 (Join-Path $env:RUNNER_TEMP 'release-notes.md')
+
+      - name: Publish GitHub Release
+        if: steps.ver.outputs.release == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          name: Shutterbox ${{ steps.ver.outputs.version }}
+          body_path: ${{ runner.temp }}/release-notes.md
+          files: |
+            dist/Shutterbox-*-Setup.exe
+            dist/Shutterbox-*-win-x64.zip
