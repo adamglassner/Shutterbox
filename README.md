@@ -11,6 +11,12 @@ Shutterbox shows the pictures already on your PC as one timeline, with albums, f
 
 Neither needs .NET installed.
 
+![Shutterbox library](docs/screenshots/library.png)
+
+| Viewer | Albums | Light theme |
+|---|---|---|
+| ![Viewer](docs/screenshots/viewer.png) | ![Albums](docs/screenshots/albums.png) | ![Light theme](docs/screenshots/library-light.png) |
+
 ## Features
 
 | | |
