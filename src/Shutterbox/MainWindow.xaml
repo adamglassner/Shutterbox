@@ -238,9 +238,14 @@
                                 </StackPanel>
                             </Button>
                         </StackPanel>
-                        <TextBox x:Name="SearchBox" Style="{StaticResource SearchBox}" Tag="Search names, folders, tags, cameras, dates…"
-                                 MaxWidth="460" HorizontalAlignment="Left" MinWidth="160" Width="460" Margin="0,0,12,0"
-                                 TextChanged="Search_TextChanged" PreviewKeyDown="Search_PreviewKeyDown"/>
+                        <Grid Margin="0,0,12,0" VerticalAlignment="Center">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" MaxWidth="460" MinWidth="120"/>
+                                <ColumnDefinition Width="0"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="SearchBox" Style="{StaticResource SearchBox}" Tag="Search names, folders, tags, cameras, dates…"
+                                     TextChanged="Search_TextChanged" PreviewKeyDown="Search_PreviewKeyDown"/>
+                        </Grid>
                     </DockPanel>
                 </Border>
 

@@ -99,7 +99,11 @@ public static class Thumbnails
         _started = true;
         int n = Math.Clamp(Environment.ProcessorCount / 2, 2, 4);
         for (int i = 0; i < n; i++)
-            new Thread(Worker) { IsBackground = true, Name = "Thumbnail worker", Priority = ThreadPriority.BelowNormal }.Start();
+        {
+            var t = new Thread(Worker) { IsBackground = true, Name = "Thumbnail worker", Priority = ThreadPriority.BelowNormal };
+            t.SetApartmentState(ApartmentState.STA);
+            t.Start();
+        }
     }
 
     private static void Worker()
@@ -115,7 +119,8 @@ public static class Thumbnails
                 Queue.RemoveAt(Queue.Count - 1);
             }
             BitmapSource img = null;
-            try { img = Make(job.photo, job.key); } catch { }
+            try { img = Make(job.photo, job.key); }
+            catch (Exception ex) { LastError ??= $"{job.photo.FileName}: {ex.GetType().Name}: {ex.Message}"; }
             List<Action<BitmapSource>> callbacks;
             lock (Lock)
             {
@@ -169,7 +174,7 @@ public static class Thumbnails
             using (var fs = File.Create(tmp)) enc.Save(fs);
             File.Move(tmp, cache, true);
         }
-        catch { }
+        catch (Exception ex) { LastError ??= $"saving thumbnail: {ex.GetType().Name}: {ex.Message}"; }
         return bmp;
     }
 
@@ -213,29 +218,72 @@ public static class Thumbnails
         return t;
     }
 
+    /// <summary>The last decoding error, for diagnostics (the self-test prints it).</summary>
+    public static string LastError { get; private set; }
+
     private static BitmapSource LoadFile(string path, int decodeW, int decodeH)
     {
-        using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1 << 16);
-        var bi = new BitmapImage();
-        bi.BeginInit();
-        bi.CacheOption = BitmapCacheOption.OnLoad;
-        bi.CreateOptions = BitmapCreateOptions.IgnoreColorProfile | BitmapCreateOptions.IgnoreImageCache;
-        if (decodeW > 0) bi.DecodePixelWidth = decodeW;
-        else if (decodeH > 0) bi.DecodePixelHeight = decodeH;
-        bi.StreamSource = fs;
-        bi.EndInit();
-        bi.Freeze();
-        return bi;
+        try
+        {
+            var bytes = File.ReadAllBytes(path);
+            using var ms = new MemoryStream(bytes, false);
+            var bi = new BitmapImage();
+            bi.BeginInit();
+            bi.CacheOption = BitmapCacheOption.OnLoad;
+            bi.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
+            if (decodeW > 0) bi.DecodePixelWidth = decodeW;
+            else if (decodeH > 0) bi.DecodePixelHeight = decodeH;
+            bi.StreamSource = ms;
+            bi.EndInit();
+            bi.Freeze();
+            return bi;
+        }
+        catch (Exception first)
+        {
+            // Some codecs don't support scaled decoding through BitmapImage: decode, then scale.
+            try
+            {
+                using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1 << 16);
+                var dec = BitmapDecoder.Create(fs, BitmapCreateOptions.IgnoreColorProfile, BitmapCacheOption.OnLoad);
+                BitmapSource frame = dec.Frames[0];
+                double scale = decodeW > 0 ? (double)decodeW / frame.PixelWidth : decodeH > 0 ? (double)decodeH / frame.PixelHeight : 1;
+                if (scale > 0 && scale < 1) frame = new TransformedBitmap(frame, new ScaleTransform(scale, scale));
+                frame.Freeze();
+                return frame;
+            }
+            catch (Exception second)
+            {
+                LastError = $"{IOPath.GetFileName(path)}: {first.GetType().Name}: {first.Message} / {second.GetType().Name}: {second.Message}";
+                throw;
+            }
+        }
+    }
+
+    /// <summary>Runs work on a background STA thread (WPF imaging is happiest there).</summary>
+    private static Task<T> RunSta<T>(Func<T> work)
+    {
+        var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var t = new Thread(() =>
+        {
+            try { tcs.SetResult(work()); }
+            catch (Exception ex) { tcs.SetException(ex); }
+        }) { IsBackground = true, Name = "Picture loader" };
+        t.SetApartmentState(ApartmentState.STA);
+        t.Start();
+        return tcs.Task;
     }
 
     /// <summary>Loads a bigger picture off the UI thread (info panel preview, viewer).</summary>
-    public static Task<BitmapSource> LoadAsync(Photo p, int shortSide, int maxLongSide, CancellationToken ct = default) =>
-        Task.Run(() =>
+    public static Task<BitmapSource> LoadAsync(Photo p, int shortSide, int maxLongSide, CancellationToken ct = default)
+    {
+        if (ct.IsCancellationRequested) return Task.FromCanceled<BitmapSource>(ct);
+        return RunSta(() =>
         {
-            ct.ThrowIfCancellationRequested();
+            if (ct.IsCancellationRequested) return null;
             try { return Load(p, shortSide, maxLongSide); }
-            catch { return null; }
-        }, ct);
+            catch (Exception ex) { LastError ??= ex.Message; return null; }
+        });
+    }
 
     public static long CacheSize()
     {

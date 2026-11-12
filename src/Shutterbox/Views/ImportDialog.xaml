@@ -3,7 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Import photos" Style="{StaticResource DialogWindow}" WindowStartupLocation="CenterOwner"
         Closing="Window_Closing">
-    <StackPanel x:Name="Root" Margin="26,22,26,22" Width="600">
+    <Border x:Name="Frame" Background="{DynamicResource DialogBg}" Padding="26,22,26,22">
+    <StackPanel x:Name="Root" Width="600">
         <TextBlock Text="Import photos" FontFamily="{DynamicResource DisplayFont}" FontSize="20" FontWeight="SemiBold"/>
         <TextBlock Text="Copy pictures from a camera card, phone or folder into your library. Shutterbox skips the ones you already have."
                    Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap" Margin="0,6,0,0"/>
@@ -33,7 +34,7 @@
             </DockPanel>
             <DockPanel Margin="0,10,0,0">
                 <TextBlock Text="Folders" VerticalAlignment="Center" Margin="0,0,12,0" Foreground="{DynamicResource TextSecondary}"/>
-                <ComboBox x:Name="LayoutBox" Width="230" HorizontalAlignment="Left" SelectionChanged="LayoutBox_SelectionChanged">
+                <ComboBox x:Name="LayoutBox" Width="300" HorizontalAlignment="Left" SelectionChanged="LayoutBox_SelectionChanged">
                     <ComboBoxItem Content="Year, then day (2026\2026-10-14)"/>
                     <ComboBoxItem Content="Year, then month (2026\2026-10)"/>
                     <ComboBoxItem Content="All in one folder"/>
@@ -55,4 +56,5 @@
             <Button x:Name="ImportBtn" Content="Import" Style="{StaticResource AccentButton}" IsEnabled="False" IsDefault="True" Click="Import_Click" MinWidth="120"/>
         </StackPanel>
     </StackPanel>
+    </Border>
 </Window>

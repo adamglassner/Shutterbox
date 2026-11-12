@@ -55,8 +55,44 @@ public partial class MainWindow
             _testFails++;
             var msg = ex is TestFailure ? ex.Message : ex.ToString();
             line = $"FAIL {name}: {msg.Replace("\r", " ").Replace("\n", " ")}";
+            if (Thumbnails.LastError != null) line += $" [last picture error: {Thumbnails.LastError}]";
+            // Put things back so one failure doesn't knock over the tests after it
+            try
+            {
+                if (ViewerOpen) CloseViewer();
+                SearchBox.Text = "";
+                if (_view != LibraryView.Photos) ShowView(LibraryView.Photos);
+                ClearSelection();
+                SelectionChanged();
+            }
+            catch { }
         }
         Log(line);
+    }
+
+    // ------------------------------------------------------------------ a window bigger than the build machine's screen
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct POINT { public int X, Y; }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct MINMAXINFO { public POINT Reserved, MaxSize, MaxPosition, MinTrackSize, MaxTrackSize; }
+
+    /// <summary>The build machine's screen is small; let the window be 1440×900 anyway so screenshots look like a real PC.</summary>
+    private void AllowLargeWindow()
+    {
+        var src = System.Windows.Interop.HwndSource.FromHwnd(new System.Windows.Interop.WindowInteropHelper(this).Handle);
+        src?.AddHook((IntPtr hwnd, int msg, IntPtr w, IntPtr l, ref bool handled) =>
+        {
+            if (msg == 0x0024) // WM_GETMINMAXINFO
+            {
+                var mmi = System.Runtime.InteropServices.Marshal.PtrToStructure<MINMAXINFO>(l);
+                mmi.MaxTrackSize = new POINT { X = 4000, Y = 3000 };
+                mmi.MaxSize = new POINT { X = 4000, Y = 3000 };
+                System.Runtime.InteropServices.Marshal.StructureToPtr(mmi, l, false);
+                handled = true;
+            }
+            return IntPtr.Zero;
+        });
     }
 
     private Task Test(string name, Action body) => Test(name, () => { body(); return Task.CompletedTask; });
@@ -92,8 +128,10 @@ public partial class MainWindow
         if (_shotDir != null) Directory.CreateDirectory(_shotDir);
         try { File.WriteAllText(App.SelfTestOutput, $"Shutterbox {AppInfo.Version} self-test\r\n"); } catch { }
         WindowState = WindowState.Normal;
+        AllowLargeWindow();
         Left = 0; Top = 0; Width = 1440; Height = 900;
         await Idle();
+        Log($"INFO window {ActualWidth:0}×{ActualHeight:0}, screen {SystemParameters.PrimaryScreenWidth:0}×{SystemParameters.PrimaryScreenHeight:0}");
 
         var root = App.SelfTestRoot;
         var pics = IOPath.Combine(root, "Pictures");
@@ -536,6 +574,7 @@ public partial class MainWindow
             Assert(EmptyState.Visibility == Visibility.Visible, "back to the welcome screen");
         });
 
+        if (Thumbnails.LastError != null) Log("INFO last picture error: " + Thumbnails.LastError);
         int fails = _testFails;
         Log($"\r\n{_testLog.Count(l => l.StartsWith("PASS") || l.StartsWith("FAIL")) - fails} passed, {fails} failed");
         Lib.Save();
