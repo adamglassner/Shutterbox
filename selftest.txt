@@ -1,0 +1,28 @@
+Shutterbox 0.1.0 self-test
+INFO window 1044×788, content 1440×900, screen 1024×768
+PASS Dates from file names (24 ms)
+PASS Empty library (176 ms)
+PASS Make sample photos (892 ms)
+INFO exposure 1/500 · f/1.7 · ISO 50; focal 6.9; lens ; location 36.2398° N, 121.8155° W
+PASS Read photo details (15 ms)
+PASS Add folder and scan (299 ms)
+PASS Timeline groups by day, month and year (949 ms)
+PASS Thumbnails (129 ms)
+PASS Select and details (759 ms)
+PASS Search (1042 ms)
+PASS Favorites (914 ms)
+PASS Tags and captions (330 ms)
+PASS Albums (1373 ms)
+PASS Rotate (82 ms)
+PASS Trash, restore and empty (2321 ms)
+PASS Library is saved (14 ms)
+PASS Rescan notices new, changed and deleted files (311 ms)
+PASS Import from a camera card (807 ms)
+PASS Viewer (1523 ms)
+PASS Slideshow of an album (284 ms)
+PASS Settings page (742 ms)
+PASS Light theme (747 ms)
+PASS Remove folder (583 ms)
+INFO last picture error: broken.jpg: NotSupportedException: No imaging component suitable to complete this operation was found. / NotSupportedException: No imaging component suitable to complete this operation was found.
+
+22 passed, 0 failed
