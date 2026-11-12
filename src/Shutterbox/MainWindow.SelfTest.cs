@@ -70,30 +70,6 @@ public partial class MainWindow
         Log(line);
     }
 
-    // ------------------------------------------------------------------ a window bigger than the build machine's screen
-    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
-    private struct POINT { public int X, Y; }
-
-    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
-    private struct MINMAXINFO { public POINT Reserved, MaxSize, MaxPosition, MinTrackSize, MaxTrackSize; }
-
-    /// <summary>The build machine's screen is small; let the window be 1440×900 anyway so screenshots look like a real PC.</summary>
-    private void AllowLargeWindow()
-    {
-        var src = System.Windows.Interop.HwndSource.FromHwnd(new System.Windows.Interop.WindowInteropHelper(this).Handle);
-        src?.AddHook((IntPtr hwnd, int msg, IntPtr w, IntPtr l, ref bool handled) =>
-        {
-            if (msg == 0x0024) // WM_GETMINMAXINFO
-            {
-                var mmi = System.Runtime.InteropServices.Marshal.PtrToStructure<MINMAXINFO>(l);
-                mmi.MaxTrackSize = new POINT { X = 4000, Y = 3000 };
-                mmi.MaxSize = new POINT { X = 4000, Y = 3000 };
-                System.Runtime.InteropServices.Marshal.StructureToPtr(mmi, l, false);
-                handled = true;
-            }
-            return IntPtr.Zero;
-        });
-    }
 
     private Task Test(string name, Action body) => Test(name, () => { body(); return Task.CompletedTask; });
 
@@ -128,10 +104,16 @@ public partial class MainWindow
         if (_shotDir != null) Directory.CreateDirectory(_shotDir);
         try { File.WriteAllText(App.SelfTestOutput, $"Shutterbox {AppInfo.Version} self-test\r\n"); } catch { }
         WindowState = WindowState.Normal;
-        AllowLargeWindow();
-        Left = 0; Top = 0; Width = 1440; Height = 900;
+        Left = 0; Top = 0;
+        // The build machine's screen is small (1024×768) and Windows won't make the window bigger than that,
+        // so lay the window's content out at a typical laptop size instead.
+        RootGrid.Width = 1440;
+        RootGrid.Height = 900;
+        RootGrid.HorizontalAlignment = HorizontalAlignment.Left;
+        RootGrid.VerticalAlignment = VerticalAlignment.Top;
         await Idle();
-        Log($"INFO window {ActualWidth:0}×{ActualHeight:0}, screen {SystemParameters.PrimaryScreenWidth:0}×{SystemParameters.PrimaryScreenHeight:0}");
+        ApplyInfoPanelVisibility();
+        Log($"INFO window {ActualWidth:0}×{ActualHeight:0}, content {RootGrid.ActualWidth:0}×{RootGrid.ActualHeight:0}, screen {SystemParameters.PrimaryScreenWidth:0}×{SystemParameters.PrimaryScreenHeight:0}");
 
         var root = App.SelfTestRoot;
         var pics = IOPath.Combine(root, "Pictures");
@@ -591,6 +573,7 @@ public partial class MainWindow
 
     private void Shot(string name)
     {
+        HideToast(); // keep screenshots clean
         if (Content is FrameworkElement element) Save(element, Background ?? Brushes.Black, name);
     }
 

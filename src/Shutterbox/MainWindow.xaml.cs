@@ -392,7 +392,7 @@ public partial class MainWindow : Window
     private double TimelineWidth()
     {
         double w = Timeline.ActualWidth;
-        if (w < 50) w = Math.Max(400, ActualWidth - 252 - (InfoShown ? 330 : 0));
+        if (w < 50) w = Math.Max(400, LayoutWidth - 252 - (InfoShown ? 330 : 0));
         return Math.Max(120, w - Timeline.Padding.Left - Timeline.Padding.Right - 14);
     }
 
@@ -617,6 +617,7 @@ public partial class MainWindow : Window
         }
         var q = SearchBox.Text.Trim();
         if (q.Length > 0 && _view is not (LibraryView.Albums or LibraryView.Settings)) sub = $"{photos(n)} match “{q}”";
+        if (Lib.Folders.Count == 0 && _view is LibraryView.Photos or LibraryView.Recent or LibraryView.Favorites) sub = "";
         TitleText.Text = title;
         SubtitleText.Text = sub;
         Title = _view == LibraryView.Photos ? "Shutterbox" : $"{title} - Shutterbox";
@@ -1077,7 +1078,11 @@ public partial class MainWindow : Window
 
     // ================================================================== info panel
 
-    private bool InfoShown => S.ShowInfoPanel && _view is not (LibraryView.Settings or LibraryView.Albums) && ActualWidth >= 1000;
+    /// <summary>Width the window's content is laid out at (the self-test lays it out bigger than the build machine's screen).</summary>
+    private double LayoutWidth => RootGrid.ActualWidth > 0 ? RootGrid.ActualWidth : ActualWidth;
+
+    /// <summary>The details panel hides itself on narrow windows so the timeline keeps enough room.</summary>
+    private bool InfoShown => S.ShowInfoPanel && _view is not (LibraryView.Settings or LibraryView.Albums) && LayoutWidth >= 1180;
 
     private void InfoToggle_Click(object sender, RoutedEventArgs e)
     {

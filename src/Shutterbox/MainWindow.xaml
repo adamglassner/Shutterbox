@@ -26,6 +26,7 @@
 
         <Style x:Key="TimelineList" TargetType="ListBox">
             <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource Text}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Focusable" Value="False"/>
             <Setter Property="Template">
@@ -47,7 +48,7 @@
                             Click="GroupSelect_Click" ToolTip="Select every photo in this group"/>
                     <TextBlock DockPanel.Dock="Right" Text="{Binding CountText}" FontSize="12" Foreground="{DynamicResource TextTertiary}" VerticalAlignment="Bottom"/>
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="{Binding Title}" FontFamily="{DynamicResource DisplayFont}" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Bottom"/>
+                        <TextBlock Text="{Binding Title}" Foreground="{DynamicResource Text}" FontFamily="{DynamicResource DisplayFont}" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Bottom"/>
                         <TextBlock Text="{Binding Subtitle}" FontSize="13" Foreground="{DynamicResource TextSecondary}" Margin="10,0,0,1" VerticalAlignment="Bottom"
                                    TextTrimming="CharacterEllipsis"/>
                     </StackPanel>
@@ -96,7 +97,7 @@
         </DataTemplate>
     </Window.Resources>
 
-    <Grid>
+    <Grid x:Name="RootGrid">
         <!-- ===================================================== main layer -->
         <Grid x:Name="MainLayer">
             <Grid.ColumnDefinitions>
