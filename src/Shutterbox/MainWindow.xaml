@@ -75,7 +75,7 @@
                                         <ImageBrush ImageSource="{Binding Thumb}" Stretch="UniformToFill"/>
                                     </Border.Background>
                                 </Border>
-                                <TextBlock Text="&#xE783;" FontFamily="{StaticResource IconFont}" FontSize="18" Foreground="{DynamicResource TextTertiary}"
+                                <TextBlock Text="{Binding FailedGlyph}" FontFamily="{StaticResource IconFont}" FontSize="18" Foreground="{DynamicResource TextTertiary}"
                                            HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding FailedVisibility}"/>
                                 <TextBlock Text="&#xEB52;" FontFamily="{StaticResource IconFont}" FontSize="13" Foreground="White"
                                            HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="7,0,0,6" Visibility="{Binding FavoriteVisibility}">

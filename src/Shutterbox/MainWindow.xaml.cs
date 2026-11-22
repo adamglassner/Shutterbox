@@ -291,10 +291,7 @@ public partial class MainWindow : Window
         SearchBox.Text = "";
         _suppressSearch = false;
 
-        bool timeline = view is not (LibraryView.Albums or LibraryView.Settings);
-        ZoomBox.Visibility = timeline ? Visibility.Visible : Visibility.Collapsed;
-        SlideshowBtn.Visibility = timeline ? Visibility.Visible : Visibility.Collapsed;
-        SearchBox.Visibility = view == LibraryView.Settings ? Visibility.Hidden : Visibility.Visible;
+        UpdateHeaderControls();
         AlbumsPage.Visibility = view == LibraryView.Albums ? Visibility.Visible : Visibility.Collapsed;
         if (view == LibraryView.Settings)
         {
@@ -464,7 +461,7 @@ public partial class MainWindow : Window
             {
                 Title = g.title,
                 Subtitle = g.subtitle,
-                CountText = items.Count == 1 ? "1 photo" : $"{items.Count:N0} photos",
+                CountText = CountLabel(items),
                 Items = items,
                 Height = first ? 46 : 64,
             });
@@ -492,6 +489,24 @@ public partial class MainWindow : Window
                 ScrollRowToTop(anchorRow);
             }));
         }
+    }
+
+    private static string CountLabel(List<PhotoItem> items)
+    {
+        int n = items.Count, videos = items.Count(i => i.Photo.IsVideo);
+        string noun = videos == 0 ? "photo" : videos == n ? "video" : "item";
+        return n == 1 ? $"1 {noun}" : $"{n:N0} {noun}s";
+    }
+
+    /// <summary>Search, zoom and slideshow only show where they make sense (not on the lock screen, settings or the album grid).</summary>
+    private void UpdateHeaderControls()
+    {
+        bool timeline = _view is not (LibraryView.Albums or LibraryView.Settings);
+        bool gated = _view == LibraryView.Locked && !Vault.IsUnlocked;
+        ZoomBox.Visibility = timeline && _view != LibraryView.Locked ? Visibility.Visible : Visibility.Collapsed;
+        SlideshowBtn.Visibility = timeline && !gated ? Visibility.Visible : Visibility.Collapsed;
+        SearchBox.Visibility = _view == LibraryView.Settings || gated ? Visibility.Hidden : Visibility.Visible;
+        ApplyInfoPanelVisibility();
     }
 
     private List<(string title, string subtitle, List<PhotoItem> items)> Group(List<PhotoItem> list)
@@ -1155,7 +1170,8 @@ public partial class MainWindow : Window
     private double LayoutWidth => RootGrid.ActualWidth > 0 ? RootGrid.ActualWidth : ActualWidth;
 
     /// <summary>The details panel hides itself on narrow windows so the timeline keeps enough room.</summary>
-    private bool InfoShown => S.ShowInfoPanel && _view is not (LibraryView.Settings or LibraryView.Albums) && LayoutWidth >= 1180;
+    private bool InfoShown => S.ShowInfoPanel && _view is not (LibraryView.Settings or LibraryView.Albums) && LayoutWidth >= 1180
+                              && !(_view == LibraryView.Locked && !Vault.IsUnlocked);
 
     private void InfoToggle_Click(object sender, RoutedEventArgs e)
     {
@@ -1171,7 +1187,8 @@ public partial class MainWindow : Window
         bool show = InfoShown;
         InfoPanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
         InfoColumn.Width = new GridLength(show ? 330 : 0);
-        InfoToggle.Visibility = _view is LibraryView.Settings or LibraryView.Albums ? Visibility.Collapsed : Visibility.Visible;
+        InfoToggle.Visibility = _view is LibraryView.Settings or LibraryView.Albums || (_view == LibraryView.Locked && !Vault.IsUnlocked)
+            ? Visibility.Collapsed : Visibility.Visible;
     }
 
     protected override void OnRenderSizeChanged(SizeChangedInfo sizeInfo)

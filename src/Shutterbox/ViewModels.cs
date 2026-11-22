@@ -33,6 +33,8 @@ public sealed class PhotoItem : Observable
 
     public Visibility SelectedVisibility => _selected ? Visibility.Visible : Visibility.Collapsed;
     public Visibility FavoriteVisibility => Photo.Favorite ? Visibility.Visible : Visibility.Collapsed;
+    /// <summary>Shown when there's no thumbnail: a film icon for videos, a warning for pictures Windows can't read.</summary>
+    public string FailedGlyph => Photo.IsVideo ? "\uE714" : "\uE783";
     public Visibility VideoVisibility => Photo.IsVideo ? Visibility.Visible : Visibility.Collapsed;
     public string DurationText => Photo.IsVideo ? (Photo.DurationText is { Length: > 0 } d ? d : "Video") : "";
     public Visibility FailedVisibility => Photo.Unreadable || Thumbnails.HasFailed(Photo) ? Visibility.Visible : Visibility.Collapsed;

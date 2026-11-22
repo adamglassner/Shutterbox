@@ -20,7 +20,7 @@ public partial class MainWindow
     {
         RefreshSidebar();
         if (!Vault.IsUnlocked && ViewerOpen && _viewPhoto?.IsLocked == true) CloseViewer();
-        if (_view == LibraryView.Locked) RebuildView(true);
+        if (_view == LibraryView.Locked) { UpdateHeaderControls(); RebuildView(true); }
         _settingsPage?.Refresh();
     }
 
