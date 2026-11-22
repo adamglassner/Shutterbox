@@ -497,7 +497,11 @@ public partial class MainWindow
             var pos = ViewerVideo.Position;
             var dur = ViewerVideo.NaturalDuration.HasTimeSpan ? ViewerVideo.NaturalDuration.TimeSpan : TimeSpan.Zero;
             if (!_seeking && dur > TimeSpan.Zero) VideoSeek.Value = Math.Min(pos.TotalSeconds, VideoSeek.Maximum);
-            if (dur > TimeSpan.Zero) VideoTime.Text = $"{Photo.FormatDuration(pos.TotalSeconds) is { Length: > 0 } a ? a : "0:00"} / {Photo.FormatDuration(dur.TotalSeconds)}";
+            if (dur > TimeSpan.Zero)
+            {
+                var now = Photo.FormatDuration(pos.TotalSeconds);
+                VideoTime.Text = (now.Length > 0 ? now : "0:00") + " / " + Photo.FormatDuration(dur.TotalSeconds);
+            }
             if (_videoPlaying) Vault.LastActivity = DateTime.Now;
         };
         return t;
