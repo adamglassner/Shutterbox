@@ -39,6 +39,10 @@ Rotating in Shutterbox doesn't change the file; it's remembered in the library.
 
 ### Locked album
 
+| Unlocked | Locked |
+|---|---|
+| ![Locked album, unlocked](docs/screenshots/locked-album.png) | ![Locked album, locked](docs/screenshots/locked-unlock.png) |
+
 Select photos or videos and choose **Lock** (or drag them onto **Locked** in the sidebar). Shutterbox copies them into an encrypted album that only Shutterbox can open:
 
 - **Unlock with** a PIN (4–12 digits) or a password, and optionally **Windows Hello** (fingerprint, face or Windows PIN) on each PC. A **recovery key** shown once at setup gets you back in if you forget the PIN or password. Nobody, including Bytehawk Studio, can open the album without one of these.
