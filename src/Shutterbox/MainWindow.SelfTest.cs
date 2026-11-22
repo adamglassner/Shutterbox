@@ -676,8 +676,9 @@ public partial class MainWindow
             ShowView(LibraryView.Locked);
             var a = NewLockedAlbum("Private");
             AreEqual("Private", a.Name, "made");
-            AreEqual("Private (2)", Vault.CreateAlbum("private").Name, "names stay unique");
-            Vault.DeleteAlbum(Vault.Albums.First(x => x.Name == "Private (2)"));
+            var twin = Vault.CreateAlbum("private");
+            AreEqual("private (2)", twin.Name, "names stay unique");
+            Vault.DeleteAlbum(twin);
             AreEqual(1, Vault.AddToAlbum(a, Vault.Photos), "added");
             await Idle();
             AreEqual(1, _flat.Count, "the album's view");
