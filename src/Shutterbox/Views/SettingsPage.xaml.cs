@@ -60,6 +60,7 @@ public partial class SettingsPage : UserControl
             SlideBox.SelectedItem = SlideBox.Items.OfType<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == S.SlideshowSeconds.ToString())
                                     ?? SlideBox.Items[1];
             VersionText.Text = "Shutterbox " + AppInfo.Version;
+            RefreshLocked();
             BuildFolders();
             var lib = LibraryStore.Current;
             StorageText.Text =
@@ -67,6 +68,107 @@ public partial class SettingsPage : UserControl
                 $"Thumbnails take {Photo.FormatSize(Thumbnails.CacheSize())} in {MainWindow.ShortPath(SettingsService.CacheFolder)}.";
         }
         finally { _loading = false; }
+    }
+
+    private void RefreshLocked()
+    {
+        bool setUp = Vault.IsSetUp, open = Vault.IsUnlocked;
+        LockedSetupBtn.Visibility = setUp ? Visibility.Collapsed : Visibility.Visible;
+        LockedOpenBtn.Visibility = setUp ? Visibility.Visible : Visibility.Collapsed;
+        LockedLockBtn.Visibility = setUp && open ? Visibility.Visible : Visibility.Collapsed;
+        LockedOptions.Visibility = setUp ? Visibility.Visible : Visibility.Collapsed;
+        LockedDeleteBtn.Visibility = setUp ? Visibility.Visible : Visibility.Collapsed;
+        var info = Vault.Info;
+        LockedStatus.Text = !setUp
+            ? "Copy photos and videos into an encrypted album that only Shutterbox can open, with a PIN, a password or Windows Hello."
+            : open ? $"Unlocked · {Vault.Count:N0} item{(Vault.Count == 1 ? "" : "s")} · protected with a {(info?.Kind == "Password" ? "password" : "PIN")}"
+                   : $"Locked · protected with a {(info?.Kind == "Password" ? "password" : "PIN")}. Unlock it to change these settings.";
+        LockedChangeBtn.IsEnabled = LockedMoveBtn.IsEnabled = LockedDeleteBtn.IsEnabled = AutoLockBox.IsEnabled = HelloBtn.IsEnabled = open;
+        HelloBtn.Content = WindowsHello.IsOn ? "Turn off Windows Hello" : "Turn on Windows Hello…";
+        HelloText.Text = WindowsHello.IsOn ? "Windows Hello is on for this PC: unlock with your fingerprint, face or Windows PIN."
+                                           : "Windows Hello is off. It's set up separately on each PC.";
+        var mins = (info?.AutoLockMinutes ?? 5).ToString();
+        AutoLockBox.SelectedItem = AutoLockBox.Items.OfType<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == mins) ?? AutoLockBox.Items[1];
+        LockedPath.Text = MainWindow.ShortPath(Vault.Folder);
+        LockedPath.ToolTip = Vault.Folder;
+    }
+
+    private void LockedMessage(string text)
+    {
+        LockedMsg.Text = text ?? "";
+        LockedMsg.Visibility = text == null ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void LockedSetup_Click(object sender, RoutedEventArgs e) { _main.SetUpLocked(); Refresh(); }
+    private void LockedOpen_Click(object sender, RoutedEventArgs e) => _main.ShowView(LibraryView.Locked);
+    private void LockedLock_Click(object sender, RoutedEventArgs e) { _main.LockNow(); Refresh(); }
+
+    private void LockedChange_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new LockSetupDialog(LockSetupDialog.Mode.Change) { Owner = Window.GetWindow(this) };
+        if (dlg.ShowDialog() == true) _main.ShowToast("PIN or password changed");
+        Refresh();
+    }
+
+    private async void Hello_Click(object sender, RoutedEventArgs e)
+    {
+        LockedMessage(null);
+        if (WindowsHello.IsOn) { WindowsHello.TurnOff(); Refresh(); return; }
+        HelloBtn.IsEnabled = false;
+        var problem = await WindowsHello.TurnOnAsync();
+        Window.GetWindow(this)?.Activate();
+        if (problem != null && problem != "Canceled.") LockedMessage(problem);
+        Refresh();
+    }
+
+    private void AutoLockBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading || AutoLockBox.SelectedItem is not ComboBoxItem item || !Vault.IsUnlocked) return;
+        Vault.SetAutoLock(int.Parse((string)item.Tag));
+    }
+
+    private async void LockedMove_Click(object sender, RoutedEventArgs e)
+    {
+        LockedMessage(null);
+        var dlg = new OpenFolderDialog { Title = "Move the Locked album into which folder? (for example your OneDrive folder)" };
+        var cloud = Environment.GetEnvironmentVariable("OneDrive");
+        if (!string.IsNullOrEmpty(cloud) && Directory.Exists(cloud)) dlg.InitialDirectory = cloud;
+        if (dlg.ShowDialog(Window.GetWindow(this)) != true) return;
+        LockedMoveBtn.IsEnabled = false;
+        var progress = new Progress<(int done, int total)>(p => _main.ShowToast($"Moving the Locked album: {p.done:N0} of {p.total:N0} files…"));
+        var problem = await Vault.MoveToAsync(dlg.FolderName, progress);
+        if (problem != null) LockedMessage(problem);
+        else _main.ShowToast($"The Locked album is now in {MainWindow.ShortPath(Vault.Folder)}", "Show", () => Shell.ShowInExplorer(Vault.Folder));
+        Refresh();
+    }
+
+    private void LockedShow_Click(object sender, RoutedEventArgs e) => Shell.ShowInExplorer(Vault.Folder);
+
+    private void LockedUseOther_Click(object sender, RoutedEventArgs e)
+    {
+        LockedMessage(null);
+        if (Vault.IsSetUp && !_main.Confirm("Switch to another Locked album?\n\nThe one Shutterbox uses now stays where it is (" + Vault.Folder +
+                                             "). You can switch back the same way.", "Use another Locked album")) return;
+        var dlg = new OpenFolderDialog { Title = "Choose the “Shutterbox Locked album” folder" };
+        var cloud = Environment.GetEnvironmentVariable("OneDrive");
+        if (!string.IsNullOrEmpty(cloud) && Directory.Exists(cloud)) dlg.InitialDirectory = cloud;
+        if (dlg.ShowDialog(Window.GetWindow(this)) != true) return;
+        var problem = Vault.OpenFolder(dlg.FolderName);
+        if (problem != null) { LockedMessage(problem); return; }
+        _main.ShowToast("Using the Locked album in " + MainWindow.ShortPath(Vault.Folder) + ". Unlock it with its PIN, password or recovery key.");
+        _main.ShowView(LibraryView.Locked);
+    }
+
+    private void LockedDelete_Click(object sender, RoutedEventArgs e)
+    {
+        if (!Vault.IsUnlocked) return;
+        if (!_main.Confirm($"Delete the Locked album and the {Vault.Count:N0} item{(Vault.Count == 1 ? "" : "s")} in it, for good?\n\n" +
+                           "Encrypted items don't go to the Recycle Bin. Restore anything you want to keep first.", "Delete Locked album")) return;
+        Vault.Delete();
+        SettingsService.Current.LockedFolder = "";
+        SettingsService.Save();
+        _main.ShowToast("The Locked album is deleted");
+        Refresh();
     }
 
     private void BuildFolders()

@@ -8,7 +8,7 @@ using Shutterbox.Views;
 
 namespace Shutterbox;
 
-public enum LibraryView { Photos, Favorites, Recent, Albums, Album, Folder, Trash, Settings }
+public enum LibraryView { Photos, Videos, Favorites, Recent, Albums, Album, Folder, Locked, Trash, Settings }
 public enum TimelineZoom { Years, Months, Days }
 
 public partial class MainWindow : Window
@@ -61,6 +61,13 @@ public partial class MainWindow : Window
         _hideUiTimer = MakeTimer(2600, HideViewerChrome);
 
         RestoreWindow();
+        Vault.CleanTemp();
+        Vault.Changed += OnVaultChanged;
+        _autoLockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
+        _autoLockTimer.Tick += (_, _) => CheckAutoLock();
+        _autoLockTimer.Start();
+        PreviewMouseMove += (_, _) => Vault.LastActivity = DateTime.Now;
+        PreviewMouseDown += (_, _) => Vault.LastActivity = DateTime.Now;
         Lib.Changed += OnLibraryChanged;
         SettingsService.Changed += OnSettingsChanged;
         InfoToggle.IsChecked = S.ShowInfoPanel;
@@ -135,6 +142,9 @@ public partial class MainWindow : Window
             S.WinLeft = b.Left; S.WinTop = b.Top; S.WinWidth = b.Width; S.WinHeight = b.Height;
         }
         SettingsService.Save();
+        StopVideo();
+        Vault.Lock();
+        Vault.CleanTemp();
         _scanCts?.Cancel();
         foreach (var w in _watchers) w.Dispose();
         Lib.Save();
@@ -150,24 +160,28 @@ public partial class MainWindow : Window
 
     public void RefreshSidebar()
     {
-        int photos = 0, favs = 0, recent = 0, trash = 0;
+        int photos = 0, videos = 0, favs = 0, recent = 0, trash = 0;
         long bytes = 0;
         var since = DateTime.Now.AddDays(-30);
         foreach (var p in Lib.Photos)
         {
             if (p.IsTrashed) { trash++; continue; }
-            photos++;
+            if (p.IsVideo) videos++; else photos++;
             bytes += p.Size;
             if (p.Favorite) favs++;
             if (p.Added >= since) recent++;
         }
         CountPhotos.Text = photos > 0 ? photos.ToString("N0") : "";
+        CountVideos.Text = videos > 0 ? videos.ToString("N0") : "";
+        CountLocked.Text = !Vault.IsSetUp ? "" : Vault.IsUnlocked ? "\uE785" : "\uE72E";
+        CountLocked.ToolTip = !Vault.IsSetUp ? null : Vault.IsUnlocked ? "Unlocked" : "Locked";
         CountFavorites.Text = favs > 0 ? favs.ToString("N0") : "";
         CountRecent.Text = recent > 0 ? recent.ToString("N0") : "";
         CountTrash.Text = trash > 0 ? trash.ToString("N0") : "";
         CountAlbums.Text = Lib.Albums.Count > 0 ? Lib.Albums.Count.ToString("N0") : "";
         if (!_scanning)
-            CardText.Text = Lib.Folders.Count == 0 ? "No folders yet" : $"{photos:N0} photos · {Photo.FormatSize(bytes)}";
+            CardText.Text = Lib.Folders.Count == 0 ? "No folders yet"
+                : videos > 0 ? $"{photos:N0} photos · {videos:N0} videos · {Photo.FormatSize(bytes)}" : $"{photos:N0} photos · {Photo.FormatSize(bytes)}";
 
         // Albums
         AlbumNav.Children.Clear();
@@ -222,6 +236,8 @@ public partial class MainWindow : Window
         else if (tag.StartsWith("folder:")) ShowView(LibraryView.Folder, folder: tag[7..]);
         else ShowView(tag switch
         {
+            "videos" => LibraryView.Videos,
+            "locked" => LibraryView.Locked,
             "favorites" => LibraryView.Favorites,
             "recent" => LibraryView.Recent,
             "albums" => LibraryView.Albums,
@@ -240,6 +256,8 @@ public partial class MainWindow : Window
             RadioButton target = _view switch
             {
                 LibraryView.Photos => NavPhotos,
+                LibraryView.Videos => NavVideos,
+                LibraryView.Locked => NavLocked,
                 LibraryView.Favorites => NavFavorites,
                 LibraryView.Recent => NavRecent,
                 LibraryView.Albums => NavAlbums,
@@ -252,7 +270,7 @@ public partial class MainWindow : Window
             if (target != null) target.IsChecked = true;
             else
             {
-                foreach (var r in new[] { NavPhotos, NavFavorites, NavRecent, NavAlbums, NavTrash, NavSettings }) r.IsChecked = false;
+                foreach (var r in new[] { NavPhotos, NavVideos, NavFavorites, NavRecent, NavAlbums, NavLocked, NavTrash, NavSettings }) r.IsChecked = false;
                 foreach (var r in AlbumNav.Children.OfType<RadioButton>().Concat(FolderNav.Children.OfType<RadioButton>())) r.IsChecked = false;
             }
         }
@@ -286,6 +304,8 @@ public partial class MainWindow : Window
             SettingsHost.Visibility = Visibility.Visible;
         }
         else SettingsHost.Visibility = Visibility.Collapsed;
+        GateError.Visibility = Visibility.Collapsed;
+        GatePassword.Clear();
         ApplyInfoPanelVisibility();
         RebuildView(false);
     }
@@ -294,6 +314,21 @@ public partial class MainWindow : Window
     {
         _rebuildTimer.Stop();
         _searchTimer.Stop();
+        LockedGate.Visibility = Visibility.Collapsed;
+        if (_view == LibraryView.Locked && !Vault.IsUnlocked)
+        {
+            Timeline.Visibility = Visibility.Collapsed;
+            EmptyState.Visibility = Visibility.Collapsed;
+            Banner.Visibility = Visibility.Collapsed;
+            _flat = new();
+            _indexOf.Clear();
+            ClearSelection();
+            ShowGate();
+            UpdateHeader();
+            UpdateSelectionUi();
+            UpdateInfo();
+            return;
+        }
         if (_view == LibraryView.Settings)
         {
             Timeline.Visibility = Visibility.Collapsed;
@@ -347,6 +382,11 @@ public partial class MainWindow : Window
         var all = Lib.Photos;
         switch (_view)
         {
+            case LibraryView.Videos:
+                return all.Where(p => !p.IsTrashed && p.IsVideo).OrderByDescending(p => p.Taken);
+            case LibraryView.Locked:
+                // photos first, then videos, newest first in each
+                return Vault.Photos.OrderBy(p => p.IsVideo).ThenByDescending(p => p.Taken);
             case LibraryView.Favorites:
                 return all.Where(p => !p.IsTrashed && p.Favorite).OrderByDescending(p => p.Taken);
             case LibraryView.Recent:
@@ -360,7 +400,8 @@ public partial class MainWindow : Window
             case LibraryView.Trash:
                 return all.Where(p => p.IsTrashed).OrderByDescending(p => p.Trashed).ThenByDescending(p => p.Taken);
             default:
-                return all.Where(p => !p.IsTrashed).OrderByDescending(p => p.Taken);
+                // Photos: photos only; videos have their own section
+                return all.Where(p => !p.IsTrashed && !p.IsVideo).OrderByDescending(p => p.Taken);
         }
     }
 
@@ -383,7 +424,7 @@ public partial class MainWindow : Window
 
     public PhotoItem ItemFor(Photo p)
     {
-        if (!_items.TryGetValue(p.Id, out var it)) _items[p.Id] = it = new PhotoItem(p);
+        if (!_items.TryGetValue(p.Id, out var it) || !ReferenceEquals(it.Photo, p)) _items[p.Id] = it = new PhotoItem(p);
         return it;
     }
 
@@ -463,7 +504,12 @@ public partial class MainWindow : Window
             d == today ? "Today" : d == today.AddDays(-1) ? "Yesterday" :
             d.Year == today.Year ? d.ToString("dddd, MMM d", CultureInfo.CurrentCulture) : d.ToString("dddd, MMM d, yyyy", CultureInfo.CurrentCulture);
 
-        if (_view == LibraryView.Recent)
+        if (_view == LibraryView.Locked)
+        {
+            key = p => p.IsVideo ? DateTime.MinValue : DateTime.MaxValue;
+            title = d => d == DateTime.MaxValue ? "Photos" : "Videos";
+        }
+        else if (_view == LibraryView.Recent)
         {
             key = p => p.Added.Date;
             title = d => d == today ? "Added today" : d == today.AddDays(-1) ? "Added yesterday" : "Added " + d.ToString("dddd, MMM d", CultureInfo.CurrentCulture);
@@ -496,7 +542,7 @@ public partial class MainWindow : Window
         {
             if (bucket == null || bucket.Count == 0) return;
             string sub = "";
-            if (_zoom == TimelineZoom.Days || _view is LibraryView.Recent)
+            if ((_zoom == TimelineZoom.Days || _view is LibraryView.Recent) && _view != LibraryView.Locked)
             {
                 var top = bucket.GroupBy(i => i.Photo.FolderName, StringComparer.OrdinalIgnoreCase)
                     .OrderByDescending(gr => gr.Count()).First();
@@ -597,10 +643,16 @@ public partial class MainWindow : Window
         string title, sub;
         int n = _flat.Count;
         string photos(int c) => c == 1 ? "1 photo" : $"{c:N0} photos";
+        string items(int c) => c == 1 ? "1 item" : $"{c:N0} items";
         switch (_view)
         {
-            case LibraryView.Favorites: title = "Favorites"; sub = photos(n); break;
-            case LibraryView.Recent: title = "Recently added"; sub = photos(n) + " in the last 30 days"; break;
+            case LibraryView.Videos: title = "Videos"; sub = n == 1 ? "1 video" : $"{n:N0} videos"; break;
+            case LibraryView.Locked:
+                title = "Locked";
+                sub = !Vault.IsSetUp ? "Encrypted, for your eyes only" : Vault.IsUnlocked ? items(n) + " · encrypted" : "Locked";
+                break;
+            case LibraryView.Favorites: title = "Favorites"; sub = items(n); break;
+            case LibraryView.Recent: title = "Recently added"; sub = items(n) + " in the last 30 days"; break;
             case LibraryView.Albums: title = "Albums"; sub = Lib.Albums.Count == 1 ? "1 album" : $"{Lib.Albums.Count} albums"; break;
             case LibraryView.Album:
                 var a = Lib.GetAlbum(_albumId);
@@ -635,6 +687,14 @@ public partial class MainWindow : Window
         }
         switch (_view)
         {
+            case LibraryView.Locked when Vault.IsUnlocked:
+                icon = "\uE72E";
+                var mins = Vault.Info?.AutoLockMinutes ?? 0;
+                text = "Only you can see these. They're encrypted copies that can't be opened outside Shutterbox" +
+                       (mins > 0 ? $", and the album locks itself after {mins} minute{(mins == 1 ? "" : "s")} without use." : ".");
+                Act("Add files…", () => AddFilesToLocked());
+                Act("Lock now", () => LockNow(), true);
+                break;
             case LibraryView.Trash when _flat.Count > 0:
                 icon = "";
                 text = "Photos in Trash are hidden everywhere else. Emptying the Trash moves the files to the Windows Recycle Bin, where you can still get them back.";
@@ -690,6 +750,8 @@ public partial class MainWindow : Window
             if (q.Length > 0) { title = "No matches"; text = $"No photos match “{q}”. Search looks at names, folders, tags, captions, cameras, albums, months and years."; }
             else switch (_view)
             {
+                case LibraryView.Videos: title = "No videos yet"; text = _scanning ? "Still looking…" : "Videos in your library folders show up here, apart from your photos. Import them from a phone or camera, or add a folder that has them."; break;
+                case LibraryView.Locked: title = "Nothing locked yet"; text = "Select photos or videos anywhere in Shutterbox and choose Lock, drag them onto Locked in the sidebar, or use Add files."; break;
                 case LibraryView.Favorites: title = "No favorites yet"; text = "Press F or click the heart on a photo to keep your best shots here."; break;
                 case LibraryView.Recent: title = "Nothing new"; text = "Photos added to your library in the last 30 days show up here."; break;
                 case LibraryView.Album: title = "This album is empty"; text = "Select photos and choose Add to album, or drag them onto the album in the sidebar."; break;
@@ -842,6 +904,14 @@ public partial class MainWindow : Window
             SelectionActions.Children.Add(b);
         }
         var sel = SelectedPhotos;
+        if (_view == LibraryView.Locked)
+        {
+            Act("\uE7AD", "Rotate", () => RotatePhotos(SelectedPhotos, 90), "R");
+            Act("\uE786", "Slideshow", () => StartSlideshow(SelectedPhotos));
+            Act("\uE785", "Restore…", () => RestoreFromLocked(SelectedPhotos), "Decrypt to a folder and take them out of the Locked album");
+            Act("\uE74D", "Delete", () => DeleteFromLocked(SelectedPhotos), "Delete");
+            return;
+        }
         if (_view == LibraryView.Trash)
         {
             Act("", "Restore", () => RestorePhotos(SelectedPhotos));
@@ -855,6 +925,7 @@ public partial class MainWindow : Window
             Act("", "Remove from album", () => RemoveFromAlbum(al, SelectedPhotos));
         Act("", "Rotate", () => RotatePhotos(SelectedPhotos, 90), "R");
         Act("", "Copy", () => CopyPhotos(SelectedPhotos), "Ctrl+C");
+        Act("\uE72E", "Lock", () => AddToLocked(SelectedPhotos), "Copy into the encrypted Locked album");
         Act("", "Slideshow", () => StartSlideshow(SelectedPhotos));
         Act("", "Move to Trash", () => TrashPhotos(SelectedPhotos), "Delete");
     }
@@ -907,7 +978,7 @@ public partial class MainWindow : Window
 
     private void Tile_MouseMove(object sender, MouseEventArgs e)
     {
-        if (_downItem == null || e.LeftButton != MouseButtonState.Pressed) return;
+        if (_downItem == null || e.LeftButton != MouseButtonState.Pressed || _view == LibraryView.Locked) return;
         var p = e.GetPosition(this);
         if (Math.Abs(p.X - _downPos.X) < 6 && Math.Abs(p.Y - _downPos.Y) < 6) return;
         var photos = _downItem.IsSelected ? SelectedPhotos : new List<Photo> { _downItem.Photo };
@@ -969,11 +1040,12 @@ public partial class MainWindow : Window
             return;
         }
         if (_view is LibraryView.Settings or LibraryView.Albums) return;
+        if (_view == LibraryView.Locked && !Vault.IsUnlocked) return;
 
         switch (e.Key)
         {
             case Key.A when ctrl: SelectAll(); e.Handled = true; return;
-            case Key.C when ctrl: CopyPhotos(SelectedPhotos); e.Handled = true; return;
+            case Key.C when ctrl: if (_view != LibraryView.Locked) CopyPhotos(SelectedPhotos); e.Handled = true; return;
             case Key.R when ctrl: _ = StartScan(null); e.Handled = true; return;
             case Key.Escape:
                 if (_selected.Count > 0) { ClearSelection(); SelectionChanged(); }
@@ -985,12 +1057,13 @@ public partial class MainWindow : Window
             case Key.Delete:
                 if (_selected.Count > 0)
                 {
-                    if (_view == LibraryView.Trash) EmptyTrash(SelectedPhotos);
+                    if (_view == LibraryView.Locked) DeleteFromLocked(SelectedPhotos);
+                    else if (_view == LibraryView.Trash) EmptyTrash(SelectedPhotos);
                     else TrashPhotos(SelectedPhotos);
                 }
                 e.Handled = true; return;
             case Key.F when !ctrl:
-                if (_selected.Count > 0) ToggleFavorite(SelectedPhotos);
+                if (_selected.Count > 0 && _view != LibraryView.Locked) ToggleFavorite(SelectedPhotos);
                 e.Handled = true; return;
             case Key.R when !ctrl:
                 if (_selected.Count > 0) RotatePhotos(SelectedPhotos, mods.HasFlag(ModifierKeys.Shift) ? -90 : 90);
@@ -1177,6 +1250,7 @@ public partial class MainWindow : Window
         Field("Lens", p.Lens);
         Field("Exposure", p.ExposureText);
         Field("Focal length", p.FocalLength is double fl ? $"{fl:0.#} mm" : null);
+        if (p.IsVideo) Field("Length", p.DurationText is { Length: > 0 } dur ? dur : "Unknown");
         Field("Size", p.Width > 0 ? $"{p.DisplayWidth:N0} × {p.DisplayHeight:N0} · {Photo.FormatSize(p.Size)}" : Photo.FormatSize(p.Size), true);
         if (p.HasLocation)
         {
@@ -1187,6 +1261,8 @@ public partial class MainWindow : Window
             sp.Children.Add(map);
             Field("Location", sp, true);
         }
+        if (p.IsLocked) Field("Kept in", "Locked album (encrypted)", true);
+        else
         {
             var sp = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 3, 0, 0) };
             sp.Children.Add(new TextBlock { Text = ShortPath(p.FolderPath), FontSize = 13, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 210, VerticalAlignment = VerticalAlignment.Center });
@@ -1200,9 +1276,13 @@ public partial class MainWindow : Window
                 ? "Windows can't show this HEIC photo yet. Install “HEIF Image Extensions” from the Microsoft Store."
                 : "Windows can't read this picture. It may be damaged or need a codec from the Microsoft Store.", true);
 
+        // Locked items keep only what's in their encrypted index: no captions, tags, albums or favorites
+        var editable = p.IsLocked ? Visibility.Collapsed : Visibility.Visible;
+        CaptionBox.Visibility = TagsLabel.Visibility = TagsPanel.Visibility = TagBox.Visibility = editable;
+        InfoEditBtn.Visibility = ShareBtn.Visibility = InfoFavBtn.Visibility = editable;
         if (!CaptionBox.IsKeyboardFocused || !samePhoto) CaptionBox.Text = p.Caption ?? "";
         BuildTagChips(p);
-        var albums = Lib.AlbumsOf(p).ToList();
+        var albums = p.IsLocked ? new List<Album>() : Lib.AlbumsOf(p).ToList();
         InfoAlbumsLabel.Visibility = albums.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         InfoAlbums.Children.Clear();
         foreach (var a in albums)
@@ -1460,7 +1540,7 @@ public partial class MainWindow : Window
         {
             var ext = IOPath.GetExtension(path);
             // pictures, or folders (which have no extension); ignore temp files
-            if (ext.Length > 0 && !MetadataReader.IsPicture(path)) return;
+            if (ext.Length > 0 && !MetadataReader.IsMedia(path)) return;
         }
         Dispatcher.BeginInvoke(new Action(() =>
         {

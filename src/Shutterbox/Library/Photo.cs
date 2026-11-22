@@ -34,6 +34,8 @@ public sealed class Photo
     public int Orientation { get; set; } = 1;
     /// <summary>True when Windows couldn't decode the file (for example HEIC without the HEIF extension).</summary>
     public bool Unreadable { get; set; }
+    /// <summary>Length of a video, in seconds (0 for photos or when unknown).</summary>
+    public double DurationSeconds { get; set; }
 
     // ---- yours ----
     /// <summary>Extra clockwise rotation chosen in Shutterbox (0, 90, 180, 270). The file itself is never changed.</summary>
@@ -45,7 +47,26 @@ public sealed class Photo
     public DateTime? Trashed { get; set; }
 
     // ---- helpers (not saved) ----
-    [JsonIgnore] public string FileName => IOPath.GetFileName(Path);
+    // ---- Locked album (these photos aren't in the library; they're made from the encrypted index) ----
+    /// <summary>Set for an item in the Locked album: its id there. <see cref="Path"/> is then the encrypted file.</summary>
+    [JsonIgnore] public string VaultId { get; set; }
+    [JsonIgnore] public string OriginalName { get; set; }
+    [JsonIgnore] public bool IsLocked => VaultId != null;
+
+    [JsonIgnore] public string FileName => OriginalName ?? IOPath.GetFileName(Path);
+    /// <summary>Videos are told apart by their file extension.</summary>
+    [JsonIgnore] public bool IsVideo => MetadataReader.IsVideo(FileName);
+    [JsonIgnore] public string DurationText => FormatDuration(DurationSeconds);
+
+    /// <summary>A shallow copy (tags list shared).</summary>
+    public Photo Copy() => (Photo)MemberwiseClone();
+
+    public static string FormatDuration(double seconds)
+    {
+        if (seconds <= 0 || double.IsNaN(seconds)) return "";
+        var t = TimeSpan.FromSeconds(Math.Round(seconds));
+        return t.TotalHours >= 1 ? $"{(int)t.TotalHours}:{t.Minutes:00}:{t.Seconds:00}" : $"{t.Minutes}:{t.Seconds:00}";
+    }
     [JsonIgnore] public string FolderPath => IOPath.GetDirectoryName(Path) ?? "";
     [JsonIgnore] public string FolderName => IOPath.GetFileName(FolderPath);
     [JsonIgnore] public bool IsTrashed => Trashed != null;

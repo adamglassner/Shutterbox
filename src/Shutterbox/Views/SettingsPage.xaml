@@ -58,6 +58,59 @@
                 </StackPanel>
             </Border>
 
+            <!-- Locked album -->
+            <Border Style="{StaticResource Panel}" Margin="0,0,0,14">
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,4">
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <Button x:Name="LockedSetupBtn" Style="{StaticResource ToolAccentButton}" Margin="0" Content="Set up…" Click="LockedSetup_Click"/>
+                            <Button x:Name="LockedOpenBtn" Style="{StaticResource ToolButton}" Content="Open" Click="LockedOpen_Click"/>
+                            <Button x:Name="LockedLockBtn" Style="{StaticResource ToolButton}" Margin="0" Content="Lock now" Click="LockedLock_Click"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="&#xE72E;" FontFamily="{StaticResource IconFont}" FontSize="16" Foreground="{DynamicResource Accent}" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="Locked album" Style="{StaticResource SectionHeader}" Margin="0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </DockPanel>
+                    <TextBlock x:Name="LockedStatus" Style="{StaticResource Hint}" Margin="0,4,0,0"/>
+
+                    <StackPanel x:Name="LockedOptions">
+                        <TextBlock Text="Unlock with" Foreground="{DynamicResource TextSecondary}" Margin="0,16,0,8"/>
+                        <WrapPanel>
+                            <Button x:Name="LockedChangeBtn" Style="{StaticResource ToolButton}" Content="Change PIN or password…" Margin="0,0,8,8" Click="LockedChange_Click"/>
+                            <Button x:Name="HelloBtn" Style="{StaticResource ToolButton}" Margin="0,0,8,8" Click="Hello_Click"/>
+                        </WrapPanel>
+                        <TextBlock x:Name="HelloText" Style="{StaticResource Hint}"/>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                            <TextBlock Text="Lock it after" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondary}" Margin="0,0,12,0"/>
+                            <ComboBox x:Name="AutoLockBox" Width="200" SelectionChanged="AutoLockBox_SelectionChanged">
+                                <ComboBoxItem Content="1 minute without use" Tag="1"/>
+                                <ComboBoxItem Content="5 minutes without use" Tag="5"/>
+                                <ComboBoxItem Content="15 minutes without use" Tag="15"/>
+                                <ComboBoxItem Content="30 minutes without use" Tag="30"/>
+                                <ComboBoxItem Content="Only when I lock it" Tag="0"/>
+                            </ComboBox>
+                        </StackPanel>
+
+                        <TextBlock Text="Where it's kept" Foreground="{DynamicResource TextSecondary}" Margin="0,18,0,6"/>
+                        <TextBlock x:Name="LockedPath" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,8"
+                                   Text="It's one folder of encrypted files. Move it into OneDrive, Dropbox or Google Drive to back it up and reach it from your other PCs, or onto a USB drive. On another PC, choose “Use a Locked album from another PC” and unlock it with your PIN, password or recovery key."/>
+                        <WrapPanel>
+                            <Button x:Name="LockedMoveBtn" Style="{StaticResource ToolButton}" Content="Move to another folder…" Margin="0,0,8,8" Click="LockedMove_Click"/>
+                            <Button x:Name="LockedShowBtn" Style="{StaticResource ToolButton}" Content="Show folder" Margin="0,0,8,8" Click="LockedShow_Click"/>
+                        </WrapPanel>
+                    </StackPanel>
+                    <WrapPanel Margin="0,4,0,0">
+                        <Button Style="{StaticResource ToolButton}" Content="Use a Locked album from another PC…" Margin="0,0,8,8" Click="LockedUseOther_Click"/>
+                        <Button x:Name="LockedDeleteBtn" Style="{StaticResource ToolButton}" Margin="0,0,8,8" Click="LockedDelete_Click" Foreground="{DynamicResource DangerText}"
+                                Content="Delete the Locked album…"/>
+                    </WrapPanel>
+                    <TextBlock x:Name="LockedMsg" Foreground="{DynamicResource DangerText}" TextWrapping="Wrap" Margin="0,6,0,0" Visibility="Collapsed"/>
+                </StackPanel>
+            </Border>
+
             <!-- Viewer -->
             <Border Style="{StaticResource Panel}" Margin="0,0,0,14">
                 <StackPanel>

@@ -16,9 +16,18 @@ public static class MetadataReader
         ".dng", ".cr2", ".cr3", ".nef", ".arw", ".orf", ".rw2", ".raf", ".srw", ".pef",
     };
 
+    public static readonly string[] VideoExtensions =
+    {
+        ".mp4", ".m4v", ".mov", ".wmv", ".avi", ".mkv", ".webm", ".3gp", ".3g2", ".mts", ".m2ts", ".mpg", ".mpeg",
+    };
+
     private static readonly HashSet<string> ExtSet = new(Extensions, StringComparer.OrdinalIgnoreCase);
+    private static readonly HashSet<string> VideoSet = new(VideoExtensions, StringComparer.OrdinalIgnoreCase);
 
     public static bool IsPicture(string path) => ExtSet.Contains(IOPath.GetExtension(path));
+    public static bool IsVideo(string path) => VideoSet.Contains(IOPath.GetExtension(path ?? ""));
+    /// <summary>A photo or a video: what Shutterbox keeps in its library.</summary>
+    public static bool IsMedia(string path) => IsPicture(path) || IsVideo(path);
 
     /// <summary>Builds a <see cref="Photo"/> for a file. Never throws: unreadable files get the file date and Unreadable = true.</summary>
     public static Photo Read(string path, FileInfo info = null)
@@ -31,6 +40,11 @@ public static class MetadataReader
             ModifiedTicks = info.LastWriteTimeUtc.Ticks,
         };
         DateTime? taken = null;
+        if (IsVideo(path))
+        {
+            taken = ReadVideo(info.FullName, p);
+            return Finish(p, taken, info);
+        }
         try
         {
             using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 65536);
@@ -47,6 +61,11 @@ public static class MetadataReader
             p.Unreadable = true;
         }
 
+        return Finish(p, taken, info);
+    }
+
+    private static Photo Finish(Photo p, DateTime? taken, FileInfo info)
+    {
         if (taken != null)
         {
             p.Taken = taken.Value;
@@ -65,6 +84,42 @@ public static class MetadataReader
             p.TakenSource = "file";
         }
         return p;
+    }
+
+    /// <summary>
+    /// Reads a video's length, frame size, GPS and recording date through Windows (the same details File Explorer shows).
+    /// Never throws; a video Windows can't read still goes in the library with its file date.
+    /// </summary>
+    private static DateTime? ReadVideo(string path, Photo p) =>
+        // WinRT calls are waited on from a thread-pool thread so this is safe to call from the UI thread too
+        Task.Run(() => ReadVideoCore(path, p)).GetAwaiter().GetResult();
+
+    private static DateTime? ReadVideoCore(string path, Photo p)
+    {
+        try
+        {
+            var file = global::Windows.Storage.StorageFile.GetFileFromPathAsync(path).AsTask().GetAwaiter().GetResult();
+            var vp = file.Properties.GetVideoPropertiesAsync().AsTask().GetAwaiter().GetResult();
+            p.Width = (int)vp.Width;
+            p.Height = (int)vp.Height;
+            p.DurationSeconds = vp.Duration.TotalSeconds;
+            if (vp.Orientation is global::Windows.Storage.FileProperties.VideoOrientation.Rotate90 or global::Windows.Storage.FileProperties.VideoOrientation.Rotate270)
+                (p.Width, p.Height) = (p.Height, p.Width);
+            if (vp.Latitude is double la && vp.Longitude is double lo && !(la == 0 && lo == 0)) { p.Latitude = la; p.Longitude = lo; }
+            var extra = file.Properties.RetrievePropertiesAsync(new[] { "System.Media.DateEncoded" }).AsTask().GetAwaiter().GetResult();
+            if (extra.TryGetValue("System.Media.DateEncoded", out var v))
+            {
+                DateTime? d = v switch
+                {
+                    DateTimeOffset dto => dto.LocalDateTime,
+                    DateTime dt => dt.ToLocalTime(),
+                    _ => null,
+                };
+                if (d is DateTime ok && Plausible(ok) && ok.Year > 1980) return ok;
+            }
+        }
+        catch { }
+        return null;
     }
 
     private static DateTime? ReadMetadata(BitmapMetadata md, Photo p)

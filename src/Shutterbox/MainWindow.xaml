@@ -83,6 +83,13 @@
                                         <DropShadowEffect BlurRadius="6" ShadowDepth="0" Opacity="0.8"/>
                                     </TextBlock.Effect>
                                 </TextBlock>
+                                <Border HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,6,6" Background="#B3000000" CornerRadius="9"
+                                        Padding="7,2,8,2" Visibility="{Binding VideoVisibility}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE768;" FontFamily="{StaticResource IconFont}" FontSize="9" Foreground="White" VerticalAlignment="Center" Margin="0,1,5,0"/>
+                                        <TextBlock Text="{Binding DurationText}" FontSize="11" Foreground="White" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Border>
                                 <Border CornerRadius="4" BorderThickness="3" BorderBrush="{DynamicResource Accent}" Visibility="{Binding SelectedVisibility}"/>
                                 <Border Width="22" Height="22" CornerRadius="11" Background="{DynamicResource Accent}" HorizontalAlignment="Left"
                                         VerticalAlignment="Top" Margin="7" Visibility="{Binding SelectedVisibility}">
@@ -155,6 +162,13 @@
                                     <TextBlock Text="Photos" VerticalAlignment="Center"/>
                                 </DockPanel>
                             </RadioButton>
+                            <RadioButton x:Name="NavVideos" Style="{StaticResource NavItem}" Tag="videos" Checked="Nav_Checked">
+                                <DockPanel>
+                                    <TextBlock Style="{StaticResource NavIcon}" Text="&#xE714;"/>
+                                    <TextBlock x:Name="CountVideos" Style="{StaticResource NavCount}"/>
+                                    <TextBlock Text="Videos" VerticalAlignment="Center"/>
+                                </DockPanel>
+                            </RadioButton>
                             <RadioButton x:Name="NavAlbums" Style="{StaticResource NavItem}" Tag="albums" Checked="Nav_Checked">
                                 <DockPanel>
                                     <TextBlock Style="{StaticResource NavIcon}" Text="&#xE8B9;"/>
@@ -174,6 +188,14 @@
                                     <TextBlock Style="{StaticResource NavIcon}" Text="&#xE823;"/>
                                     <TextBlock x:Name="CountRecent" Style="{StaticResource NavCount}"/>
                                     <TextBlock Text="Recently added" VerticalAlignment="Center"/>
+                                </DockPanel>
+                            </RadioButton>
+                            <RadioButton x:Name="NavLocked" Style="{StaticResource NavItem}" Tag="locked" Checked="Nav_Checked"
+                                         AllowDrop="True" DragOver="AlbumTarget_DragOver" Drop="LockedNav_Drop">
+                                <DockPanel>
+                                    <TextBlock Style="{StaticResource NavIcon}" Text="&#xE72E;"/>
+                                    <TextBlock x:Name="CountLocked" Style="{StaticResource NavCount}" FontFamily="{StaticResource IconFont}"/>
+                                    <TextBlock Text="Locked" VerticalAlignment="Center"/>
                                 </DockPanel>
                             </RadioButton>
                             <RadioButton x:Name="NavTrash" Style="{StaticResource NavItem}" Tag="trash" Checked="Nav_Checked">
@@ -373,6 +395,45 @@
                         </StackPanel>
                     </Grid>
 
+                    <!-- ============ Locked album: set up / unlock ============ -->
+                    <Border x:Name="LockedGate" Grid.Column="0" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="24">
+                        <StackPanel Width="400">
+                            <Border Width="76" Height="76" CornerRadius="38" Background="{DynamicResource AccentSoft}" HorizontalAlignment="Center">
+                                <TextBlock Text="&#xE72E;" FontFamily="{StaticResource IconFont}" FontSize="30" Foreground="{DynamicResource Accent}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock x:Name="GateTitle" Text="Locked album" FontFamily="{DynamicResource DisplayFont}" FontSize="24" FontWeight="SemiBold"
+                                       HorizontalAlignment="Center" Margin="0,18,0,0"/>
+                            <TextBlock x:Name="GateText" TextWrapping="Wrap" TextAlignment="Center" Foreground="{DynamicResource TextSecondary}" Margin="0,8,0,0" FontSize="14"/>
+                            <StackPanel x:Name="GateSetup" Margin="0,22,0,0">
+                                <Button Style="{StaticResource ToolAccentButton}" Height="42" Margin="0" Content="Set up the Locked album" Click="GateSetup_Click" HorizontalAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel x:Name="GateUnlock" Margin="0,22,0,0">
+                                <TextBlock x:Name="GateKindLabel" Text="PIN" Foreground="{DynamicResource TextSecondary}" FontSize="12.5" Margin="0,0,0,6"/>
+                                <DockPanel>
+                                    <Button DockPanel.Dock="Right" Style="{StaticResource ToolAccentButton}" Height="42" Margin="8,0,0,0" Content="Unlock" Click="GateUnlock_Click"/>
+                                    <PasswordBox x:Name="GatePassword" Style="{StaticResource PinBox}" MaxLength="128" KeyDown="GatePassword_KeyDown"/>
+                                </DockPanel>
+                                <Button x:Name="GateHelloBtn" Style="{StaticResource ToolButton}" Height="42" Margin="0,10,0,0" HorizontalAlignment="Stretch" Click="GateHello_Click">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE928;" FontFamily="{StaticResource IconFont}" FontSize="16" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Unlock with Windows Hello" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
+                                <Button Style="{StaticResource LinkButton}" Content="Forgot it? Use your recovery key" HorizontalAlignment="Center" Margin="0,14,0,0" Click="GateForgot_Click"/>
+                            </StackPanel>
+                            <StackPanel x:Name="GateRecovery" Margin="0,22,0,0" Visibility="Collapsed">
+                                <TextBlock Text="Recovery key" Foreground="{DynamicResource TextSecondary}" FontSize="12.5" Margin="0,0,0,6"/>
+                                <DockPanel>
+                                    <Button DockPanel.Dock="Right" Style="{StaticResource ToolAccentButton}" Height="42" Margin="8,0,0,0" Content="Unlock" Click="GateRecovery_Click"/>
+                                    <TextBox x:Name="GateRecoveryBox" Style="{StaticResource HintBox}" Height="42" Tag="XXXXX-XXXXX-XXXXX-XXXXX-XXXXX" CharacterCasing="Upper" MaxLength="40"/>
+                                </DockPanel>
+                                <Button Style="{StaticResource LinkButton}" Content="Back to PIN or password" HorizontalAlignment="Center" Margin="0,14,0,0" Click="GateBack_Click"/>
+                            </StackPanel>
+                            <TextBlock x:Name="GateError" Foreground="{DynamicResource DangerText}" TextWrapping="Wrap" TextAlignment="Center" Margin="0,12,0,0" Visibility="Collapsed"/>
+                        </StackPanel>
+                    </Border>
+
                     <!-- ============ Info panel ============ -->
                     <Border x:Name="InfoPanel" Grid.Column="1" Background="{DynamicResource PanelBg}" BorderBrush="{DynamicResource Divider}" BorderThickness="1,0,0,0">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
@@ -388,7 +449,7 @@
                                     <Grid x:Name="InfoFields" Margin="0,16,0,0"/>
                                     <TextBox x:Name="CaptionBox" Style="{StaticResource HintBox}" Tag="Add a caption…" Margin="0,16,0,0"
                                              TextWrapping="Wrap" MaxLength="500" LostKeyboardFocus="CaptionBox_LostKeyboardFocus" KeyDown="CaptionBox_KeyDown"/>
-                                    <TextBlock Text="TAGS" Style="{StaticResource FieldName}" Margin="0,18,0,8"/>
+                                    <TextBlock x:Name="TagsLabel" Text="TAGS" Style="{StaticResource FieldName}" Margin="0,18,0,8"/>
                                     <WrapPanel x:Name="TagsPanel"/>
                                     <TextBox x:Name="TagBox" Style="{StaticResource HintBox}" Tag="Add a tag and press Enter" Margin="0,6,0,0"
                                              MaxLength="60" KeyDown="TagBox_KeyDown"/>
@@ -396,7 +457,7 @@
                                     <WrapPanel x:Name="InfoAlbums"/>
                                     <StackPanel Orientation="Horizontal" Margin="0,22,0,0">
                                         <Button Style="{StaticResource ToolButton}" Content="Open" Click="InfoOpen_Click" ToolTip="Open full size (Enter)"/>
-                                        <Button Style="{StaticResource ToolButton}" Content="Edit" Click="InfoEdit_Click" ToolTip="Open in your photo editor"/>
+                                        <Button x:Name="InfoEditBtn" Style="{StaticResource ToolButton}" Content="Edit" Click="InfoEdit_Click" ToolTip="Open in your photo editor"/>
                                         <Button x:Name="ShareBtn" Style="{StaticResource ToolButton}" Click="InfoShare_Click" ToolTip="Copy, show in File Explorer, open with…">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="Share" VerticalAlignment="Center"/>
@@ -459,6 +520,9 @@
                         </TransformGroup>
                     </Image.RenderTransform>
                 </Image>
+                <MediaElement x:Name="ViewerVideo" LoadedBehavior="Manual" UnloadedBehavior="Manual" Stretch="Uniform" Margin="24,24,24,96"
+                              Visibility="Collapsed" MediaOpened="ViewerVideo_MediaOpened" MediaEnded="ViewerVideo_MediaEnded" MediaFailed="ViewerVideo_MediaFailed"
+                              MouseLeftButtonUp="ViewerVideo_Click"/>
                 <StackPanel x:Name="ViewerMessage" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420">
                     <TextBlock Text="&#xE783;" FontFamily="{StaticResource IconFont}" FontSize="36" Foreground="{DynamicResource ViewerTextSecondary}" HorizontalAlignment="Center"/>
                     <TextBlock x:Name="ViewerMessageText" Foreground="{DynamicResource ViewerText}" TextWrapping="Wrap" TextAlignment="Center" Margin="0,12,0,0" FontSize="14"/>
@@ -470,12 +534,12 @@
                     <Button DockPanel.Dock="Left" Style="{StaticResource ViewerButton}" Content="&#xE72B;" Click="ViewerClose_Click" ToolTip="Back to the library (Esc)"/>
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock x:Name="ViewerZoomText" Foreground="{DynamicResource ViewerTextSecondary}" FontSize="12.5" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                        <Button Style="{StaticResource ViewerButton}" Content="&#xE71F;" Click="ViewerZoomOut_Click" ToolTip="Zoom out (-)"/>
-                        <Button Style="{StaticResource ViewerButton}" Content="&#xE8A3;" Click="ViewerZoomIn_Click" ToolTip="Zoom in (+)"/>
+                        <Button x:Name="ViewerZoomOutBtn" Style="{StaticResource ViewerButton}" Content="&#xE71F;" Click="ViewerZoomOut_Click" ToolTip="Zoom out (-)"/>
+                        <Button x:Name="ViewerZoomInBtn" Style="{StaticResource ViewerButton}" Content="&#xE8A3;" Click="ViewerZoomIn_Click" ToolTip="Zoom in (+)"/>
                         <Button x:Name="ViewerFavBtn" Style="{StaticResource ViewerButton}" Content="&#xEB51;" Click="ViewerFavorite_Click" ToolTip="Favorite (F)"/>
-                        <Button Style="{StaticResource ViewerButton}" Content="&#xE7AD;" Click="ViewerRotate_Click" ToolTip="Rotate (R)"/>
-                        <Button Style="{StaticResource ViewerButton}" Content="&#xE70F;" Click="ViewerEdit_Click" ToolTip="Edit in your photo editor"/>
-                        <Button Style="{StaticResource ViewerButton}" Content="&#xE72D;" Click="ViewerShare_Click" ToolTip="Share"/>
+                        <Button x:Name="ViewerRotateBtn" Style="{StaticResource ViewerButton}" Content="&#xE7AD;" Click="ViewerRotate_Click" ToolTip="Rotate (R)"/>
+                        <Button x:Name="ViewerEditBtn" Style="{StaticResource ViewerButton}" Content="&#xE70F;" Click="ViewerEdit_Click" ToolTip="Edit in your photo editor"/>
+                        <Button x:Name="ViewerShareBtn" Style="{StaticResource ViewerButton}" Content="&#xE72D;" Click="ViewerShare_Click" ToolTip="Share"/>
                         <Button x:Name="ViewerPlayBtn" Style="{StaticResource ViewerButton}" Content="&#xE768;" Click="ViewerPlay_Click" ToolTip="Slideshow (Space)"/>
                         <Button Style="{StaticResource ViewerButton}" Content="&#xE74D;" Click="ViewerTrash_Click" ToolTip="Move to Trash (Delete)"/>
                     </StackPanel>
@@ -490,6 +554,17 @@
                     Margin="20,56,0,0" Click="ViewerPrev_Click" ToolTip="Previous (Left arrow)"/>
             <Button x:Name="ViewerNextBtn" Style="{StaticResource ViewerArrow}" Content="&#xE76C;" HorizontalAlignment="Right" VerticalAlignment="Center"
                     Margin="0,56,20,0" Click="ViewerNext_Click" ToolTip="Next (Right arrow)"/>
+            <Border x:Name="ViewerVideoBar" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,58" Width="680"
+                    Background="#D9101012" CornerRadius="16" Padding="8,4" Visibility="Collapsed">
+                <DockPanel>
+                    <Button x:Name="VideoPlayBtn" DockPanel.Dock="Left" Style="{StaticResource ViewerButton}" Content="&#xE769;" Click="VideoPlay_Click" ToolTip="Play or pause (Space)"/>
+                    <Button x:Name="VideoMuteBtn" DockPanel.Dock="Right" Style="{StaticResource ViewerButton}" Content="&#xE767;" Click="VideoMute_Click" ToolTip="Mute (M)"/>
+                    <TextBlock x:Name="VideoTime" DockPanel.Dock="Right" Foreground="{DynamicResource ViewerText}" FontSize="12.5" VerticalAlignment="Center" Margin="10,0,6,0"
+                               MinWidth="90" TextAlignment="Right"/>
+                    <Slider x:Name="VideoSeek" VerticalAlignment="Center" Margin="8,0" Minimum="0" Maximum="1" IsMoveToPointEnabled="True"
+                            PreviewMouseLeftButtonDown="VideoSeek_MouseDown" PreviewMouseLeftButtonUp="VideoSeek_MouseUp" ValueChanged="VideoSeek_ValueChanged"/>
+                </DockPanel>
+            </Border>
             <Border x:Name="ViewerCounterBox" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,18" Background="#99000000"
                     CornerRadius="14" Padding="12,5">
                 <TextBlock x:Name="ViewerCounter" Foreground="{DynamicResource ViewerText}" FontSize="12.5"/>

@@ -83,10 +83,10 @@ public static class Importer
             foreach (var s in srcList)
             {
                 ct.ThrowIfCancellationRequested();
-                if (File.Exists(s)) { if (MetadataReader.IsPicture(s)) files.Add(s); }
+                if (File.Exists(s)) { if (MetadataReader.IsMedia(s)) files.Add(s); }
                 else if (Directory.Exists(s))
                 {
-                    try { files.AddRange(Directory.EnumerateFiles(s, "*", Walk).Where(MetadataReader.IsPicture)); }
+                    try { files.AddRange(Directory.EnumerateFiles(s, "*", Walk).Where(MetadataReader.IsMedia)); }
                     catch { }
                 }
             }

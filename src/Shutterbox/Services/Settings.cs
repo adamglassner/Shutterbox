@@ -48,6 +48,10 @@ public sealed class AppSettings
     public bool ImportDeleteOriginals { get; set; } = false;
     public string LastImportSource { get; set; } = "";
 
+    // ---- Locked album ----
+    /// <summary>Where the Locked album's folder is (empty = %APPDATA%\Shutterbox\Locked). Can be a OneDrive/Dropbox folder or a USB drive.</summary>
+    public string LockedFolder { get; set; } = "";
+
     // ---- Viewer ----
     public int SlideshowSeconds { get; set; } = 5;
 
@@ -128,6 +132,7 @@ public static class SettingsService
         if (string.IsNullOrWhiteSpace(s.ImportFolder)) s.ImportFolder = AppSettings.DefaultImportFolder;
         s.Accent ??= "Amber";
         s.LastImportSource ??= "";
+        s.LockedFolder ??= "";
         s.SlideshowSeconds = Math.Clamp(s.SlideshowSeconds, 2, 60);
         if (double.IsNaN(s.WinWidth) || s.WinWidth < 720) s.WinWidth = 1360;
         if (double.IsNaN(s.WinHeight) || s.WinHeight < 480) s.WinHeight = 860;

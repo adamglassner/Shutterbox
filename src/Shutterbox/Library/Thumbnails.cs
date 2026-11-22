@@ -158,6 +158,13 @@ public static class Thumbnails
 
     private static BitmapSource Make(Photo p, string key)
     {
+        if (p.IsLocked)
+        {
+            // Locked album: decrypted in memory only, never cached on disk
+            var bytes = Vault.ReadThumb(p.VaultId);
+            if (bytes != null) return Upright(LoadBytes(bytes, 0, 0), new Photo { Rotation = p.Rotation });
+            return p.IsVideo ? null : Load(p, CachePixels);
+        }
         var cache = CachePath(p, key);
         if (File.Exists(cache))
         {
@@ -184,6 +191,17 @@ public static class Thumbnails
     /// </summary>
     public static BitmapSource Load(Photo p, int shortSide, int maxLongSide = 0)
     {
+        if (p.IsVideo)
+        {
+            // A still from the video, made by Windows (the same one File Explorer shows)
+            if (p.IsLocked)
+            {
+                var t = Vault.ReadThumb(p.VaultId);
+                if (t == null) throw new InvalidOperationException("No still for this video.");
+                return LoadBytes(t, 0, 0);
+            }
+            return Upright(VideoStill(p.Path, shortSide <= 0 ? 1024 : Math.Max(shortSide, 256)), new Photo { Rotation = p.Rotation });
+        }
         int decodeW = 0, decodeH = 0;
         if (shortSide > 0 && p.Width > 0 && p.Height > 0)
         {
@@ -202,7 +220,7 @@ public static class Thumbnails
         {
             decodeW = shortSide * 2;
         }
-        BitmapSource src = LoadFile(p.Path, decodeW, decodeH);
+        BitmapSource src = p.IsLocked ? LoadBytes(Vault.ReadBytes(p.VaultId), decodeW, decodeH) : LoadFile(p.Path, decodeW, decodeH);
         return Upright(src, p);
     }
 
@@ -223,9 +241,39 @@ public static class Thumbnails
 
     private static BitmapSource LoadFile(string path, int decodeW, int decodeH)
     {
+        try { return LoadBytes(File.ReadAllBytes(path), decodeW, decodeH); }
+        catch (Exception ex) when (ex is not IOException)
+        {
+            LastError = $"{IOPath.GetFileName(path)}: {ex.GetType().Name}: {ex.Message}";
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// A still from a video through Windows' thumbnailer (WinRT). Runs on a thread-pool thread so waiting on it
+    /// can't deadlock an STA thread.
+    /// </summary>
+    private static BitmapSource VideoStill(string path, int size)
+    {
+        var bytes = Task.Run(async () =>
+        {
+            var file = await global::Windows.Storage.StorageFile.GetFileFromPathAsync(path);
+            using var thumb = await file.GetThumbnailAsync(global::Windows.Storage.FileProperties.ThumbnailMode.SingleItem, (uint)size,
+                global::Windows.Storage.FileProperties.ThumbnailOptions.ResizeThumbnail);
+            if (thumb == null || thumb.Type != global::Windows.Storage.FileProperties.ThumbnailType.Image || thumb.Size == 0) return null;
+            using var s = thumb.AsStreamForRead();
+            using var ms = new MemoryStream();
+            await s.CopyToAsync(ms);
+            return ms.ToArray();
+        }).GetAwaiter().GetResult();
+        if (bytes == null) throw new InvalidOperationException("Windows couldn't make a still for this video.");
+        return LoadBytes(bytes, 0, 0);
+    }
+
+    private static BitmapSource LoadBytes(byte[] bytes, int decodeW, int decodeH)
+    {
         try
         {
-            var bytes = File.ReadAllBytes(path);
             using var ms = new MemoryStream(bytes, false);
             var bi = new BitmapImage();
             bi.BeginInit();
@@ -243,7 +291,7 @@ public static class Thumbnails
             // Some codecs don't support scaled decoding through BitmapImage: decode, then scale.
             try
             {
-                using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1 << 16);
+                using var fs = new MemoryStream(bytes, false);
                 var dec = BitmapDecoder.Create(fs, BitmapCreateOptions.IgnoreColorProfile, BitmapCacheOption.OnLoad);
                 BitmapSource frame = dec.Frames[0];
                 double scale = decodeW > 0 ? (double)decodeW / frame.PixelWidth : decodeH > 0 ? (double)decodeH / frame.PixelHeight : 1;
@@ -253,8 +301,7 @@ public static class Thumbnails
             }
             catch (Exception second)
             {
-                LastError = $"{IOPath.GetFileName(path)}: {first.GetType().Name}: {first.Message} / {second.GetType().Name}: {second.Message}";
-                throw;
+                throw new InvalidOperationException($"{first.GetType().Name}: {first.Message} / {second.GetType().Name}: {second.Message}", second);
             }
         }
     }

@@ -1,0 +1,55 @@
+<Window x:Class="Shutterbox.Views.LockSetupDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Locked album" Style="{StaticResource DialogWindow}" WindowStartupLocation="CenterOwner">
+    <Border x:Name="Frame" Background="{DynamicResource DialogBg}" Padding="28,24">
+        <Grid Width="440">
+            <!-- Step 1: PIN or password -->
+            <StackPanel x:Name="StepSecret">
+                <StackPanel Orientation="Horizontal">
+                    <Border Width="40" Height="40" CornerRadius="20" Background="{DynamicResource AccentSoft}">
+                        <TextBlock Text="&#xE72E;" FontFamily="{StaticResource IconFont}" FontSize="17" Foreground="{DynamicResource Accent}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <TextBlock x:Name="HeadingText" Text="Set up the Locked album" FontFamily="{DynamicResource DisplayFont}" FontSize="20"
+                               FontWeight="SemiBold" VerticalAlignment="Center" Margin="14,0,0,0"/>
+                </StackPanel>
+                <TextBlock x:Name="IntroText" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondary}" Margin="0,14,0,0"
+                           Text="Photos and videos you lock are copied into an encrypted album that only Shutterbox can open. Choose how you'll unlock it."/>
+                <StackPanel Orientation="Horizontal" Margin="0,18,0,0">
+                    <RadioButton x:Name="KindPin" Style="{StaticResource ChoicePill}" GroupName="kind" Content="PIN" IsChecked="True" Checked="Kind_Checked"/>
+                    <RadioButton x:Name="KindPassword" Style="{StaticResource ChoicePill}" GroupName="kind" Content="Password" Checked="Kind_Checked"/>
+                </StackPanel>
+                <TextBlock x:Name="SecretLabel" Text="PIN (4 to 12 digits)" Foreground="{DynamicResource TextSecondary}" FontSize="12.5" Margin="0,16,0,6"/>
+                <PasswordBox x:Name="Secret1" Style="{StaticResource PinBox}" MaxLength="128"/>
+                <TextBlock Text="Type it again" Foreground="{DynamicResource TextSecondary}" FontSize="12.5" Margin="0,12,0,6"/>
+                <PasswordBox x:Name="Secret2" Style="{StaticResource PinBox}" MaxLength="128" KeyDown="Secret2_KeyDown"/>
+                <TextBlock x:Name="ErrorText" Foreground="{DynamicResource DangerText}" TextWrapping="Wrap" Margin="0,10,0,0" Visibility="Collapsed"/>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,22,0,0">
+                    <Button Content="Cancel" IsCancel="True" Margin="0,0,8,0"/>
+                    <Button x:Name="NextBtn" Content="Continue" Style="{StaticResource AccentButton}" IsDefault="True" Click="Next_Click" MinWidth="110"/>
+                </StackPanel>
+            </StackPanel>
+
+            <!-- Step 2: recovery key and Windows Hello -->
+            <StackPanel x:Name="StepRecovery" Visibility="Collapsed">
+                <TextBlock Text="Save your recovery key" FontFamily="{DynamicResource DisplayFont}" FontSize="20" FontWeight="SemiBold"/>
+                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource TextSecondary}" Margin="0,10,0,0"
+                           Text="If you forget your PIN or password, this key is the only way back in. Write it down or keep it in a password manager. Shutterbox can't show it again, and nobody can recover the album without it."/>
+                <Border Background="{DynamicResource InputBg}" BorderBrush="{DynamicResource Accent}" BorderThickness="1" CornerRadius="10" Padding="14,12" Margin="0,16,0,0">
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Style="{StaticResource ToolButton}" Margin="10,0,0,0" Content="Copy" Click="CopyKey_Click"/>
+                        <TextBox x:Name="RecoveryText" IsReadOnly="True" BorderThickness="0" Background="Transparent" FontFamily="Consolas" FontSize="17"
+                                 Foreground="{DynamicResource Text}" VerticalAlignment="Center" FocusVisualStyle="{x:Null}"/>
+                    </DockPanel>
+                </Border>
+                <CheckBox x:Name="HelloBox" Content="Also unlock with Windows Hello on this PC (fingerprint, face or Windows PIN)" Margin="0,18,0,0"/>
+                <CheckBox x:Name="SavedBox" Content="I've saved my recovery key" Margin="0,10,0,0" Click="SavedBox_Click"/>
+                <TextBlock x:Name="HelloError" Foreground="{DynamicResource DangerText}" TextWrapping="Wrap" Margin="0,10,0,0" Visibility="Collapsed"/>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,22,0,0">
+                    <Button x:Name="DoneBtn" Content="Done" Style="{StaticResource AccentButton}" IsEnabled="False" Click="Done_Click" MinWidth="110"/>
+                </StackPanel>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

@@ -424,6 +424,205 @@ public partial class MainWindow
             await Idle();
         });
 
+        await Test("Videos have their own section", async () =>
+        {
+            var clips = IOPath.Combine(pics, "Clips");
+            SampleVideo.WriteAvi(IOPath.Combine(clips, "VID_20261018_143000.avi"), 160, 120, 30, 10, 1);
+            SampleVideo.WriteAvi(IOPath.Combine(clips, "beach.avi"), 160, 120, 20, 10, 2);
+            int photosBefore = Lib.Photos.Count(p => !p.IsTrashed && !p.IsVideo);
+            await StartScan(null);
+            AreEqual(expected + 2, Lib.Count, "videos found");
+            expected += 2;
+            AreEqual(2, Lib.Photos.Count(p => p.IsVideo), "videos in the library");
+            ShowView(LibraryView.Photos);
+            await Idle();
+            AreEqual(photosBefore, _flat.Count, "Photos shows photos only");
+            Assert(!_flat.Any(i => i.Photo.IsVideo), "no videos among the photos");
+            ShowView(LibraryView.Videos);
+            await Idle();
+            AreEqual(2, _flat.Count, "Videos view");
+            AreEqual("2", CountVideos.Text, "sidebar video count");
+            var v = Lib.Photos.First(p => p.FileName.StartsWith("VID_"));
+            Log($"INFO video: {v.Width}×{v.Height}, length {v.DurationText}, date from {v.TakenSource}");
+            if (v.TakenSource != "exif") AreEqual(new DateTime(2026, 10, 18, 14, 30, 0), v.Taken, "video date from its name");
+            await WaitForThumbs(2);
+            Log($"INFO video still made by Windows: {(Thumbnails.Get(v, null) != null ? "yes" : "no (" + (Thumbnails.HasFailed(v) ? "not available on this machine" : "pending") + ")")}");
+            Assert(ItemFor(v).VideoVisibility == Visibility.Visible, "video badge on the tile");
+            Shot("14-videos");
+            OpenViewer(v);
+            try { await WaitUntil(() => VideoOpened || ViewerMessage.Visibility == Visibility.Visible, 10000, "video to open"); }
+            catch (TestFailure) { }
+            Assert(VideoShowing || ViewerMessage.Visibility == Visibility.Visible, "the viewer shows a player (or says why it can't)");
+            Log($"INFO video playback on the build machine: {(VideoOpened ? "plays" : "not available (" + ViewerMessageText.Text.Replace("\n", " ") + ")")}");
+            await Task.Delay(400);
+            Shot("15-video-player");
+            CloseViewer();
+            StartSlideshow(Lib.Photos.Where(p => !p.IsTrashed).ToList());
+            Assert(!_viewList.Any(p => p.IsVideo), "slideshows skip videos");
+            StopSlideshow();
+            CloseViewer();
+            ShowView(LibraryView.Photos);
+            await Idle();
+        });
+
+        string recovery = null;
+        List<Photo> lockedOriginals = null;
+        await Test("Locked album: set up, add, lock and unlock", async () =>
+        {
+            Assert(!Vault.IsSetUp, "not set up at first");
+            AreEqual("A PIN is 4 to 12 digits.", Vault.Validate("12", "PIN"), "short PIN refused");
+            Assert(LockSetupDialog.Check("2468", "2469", "PIN") != null, "PINs that don't match are caught");
+            ShowView(LibraryView.Locked);
+            await Idle();
+            Assert(LockedGate.Visibility == Visibility.Visible && GateSetup.Visibility == Visibility.Visible, "set-up screen");
+            Shot("16-locked-welcome");
+            var dlg = new LockSetupDialog(LockSetupDialog.Mode.SetUp) { Owner = this };
+            dlg.Show();
+            dlg.Secret1.Password = "2468";
+            dlg.Secret2.Password = "2468";
+            await Idle();
+            ShotOf(dlg, "17-locked-setup");
+            dlg.Close();
+
+            recovery = await Task.Run(() => Vault.SetUp("2468", "PIN"));
+            Assert(Vault.IsUnlocked, "unlocked after setting up");
+            AreEqual(29, recovery.Length, "recovery key format");
+            lockedOriginals = Lib.Photos.Where(p => p.FolderName == "Portland").OrderBy(p => p.FileName).Take(2).ToList();
+            var clip = Lib.Photos.First(p => p.IsVideo);
+            var r = await LockPhotosAsync(lockedOriginals.Append(clip).ToList());
+            AreEqual(3, r.added, "added");
+            AreEqual(0, r.errors.Count, "errors: " + string.Join("; ", r.errors));
+            var again = await Vault.AddAsync(lockedOriginals);
+            AreEqual(2, again.skipped, "adding again skips them");
+            Assert(lockedOriginals.All(p => File.Exists(p.Path) && Lib.Get(p.Id) != null), "originals untouched");
+
+            // really encrypted on disk: no JPEG or AVI headers, no names
+            foreach (var f in Directory.GetFiles(IOPath.Combine(Vault.Folder, "items")))
+            {
+                var b = File.ReadAllBytes(f);
+                AreEqual("SBOX1", System.Text.Encoding.ASCII.GetString(b, 0, 5), "encrypted file header");
+                Assert(!(b[17 + 16] == 0xFF && b[17 + 17] == 0xD8), "not a readable JPEG");
+                Assert(IOPath.GetFileNameWithoutExtension(f).Length == 32, "random file names");
+            }
+            var index = System.Text.Encoding.Latin1.GetString(File.ReadAllBytes(IOPath.Combine(Vault.Folder, "index.sbox")));
+            Assert(!index.Contains("IMG_41") && !index.Contains("VID_") && !index.Contains("beach"), "names are encrypted too");
+            var lp = Vault.Photos.First(p => p.FileName == lockedOriginals[0].FileName);
+            Assert(Vault.ReadBytes(lp.VaultId).AsSpan().SequenceEqual(File.ReadAllBytes(lockedOriginals[0].Path)), "decrypts back exactly");
+
+            ShowView(LibraryView.Locked);
+            await Idle();
+            AreEqual(3, _flat.Count, "Locked view");
+            AreEqual("Photos|Videos", string.Join("|", _rows.OfType<HeaderRow>().Select(h => h.Title)), "photos and videos apart");
+            await WaitForThumbs(3);
+            SelectOnly(_flat[0]);
+            await Idle();
+            Assert(CaptionBox.Visibility == Visibility.Collapsed && InfoEditBtn.Visibility == Visibility.Collapsed, "no editing or sharing of locked items");
+            Shot("18-locked-album");
+            OpenViewer(_flat[0].Photo);
+            await WaitUntil(() => ViewerImage.Source is BitmapSource b && b.PixelWidth >= 1000, 15000, "a locked photo in the viewer");
+            Assert(ViewerShareBtn.Visibility == Visibility.Collapsed, "no sharing from the viewer");
+            CloseViewer();
+
+            LockNow();
+            await Idle();
+            Assert(!Vault.IsUnlocked, "locked");
+            AreEqual(0, Vault.Photos.Count, "nothing visible while locked");
+            Assert(LockedGate.Visibility == Visibility.Visible && GateUnlock.Visibility == Visibility.Visible, "unlock screen");
+            AreEqual(0, _flat.Count, "timeline empty while locked");
+            Shot("19-locked-locked");
+            Assert(!Vault.Unlock("1111"), "wrong PIN refused");
+            GatePassword.Password = "2468";
+            GateUnlock_Click(null, null);
+            await WaitUntil(() => Vault.IsUnlocked, 20000, "unlocking from the lock screen");
+            await Task.Delay(300);
+            await Idle();
+            AreEqual(3, _flat.Count, "unlocked again");
+
+            Vault.Lock();
+            Assert(Vault.UnlockWithRecoveryKey(recovery.ToLowerInvariant().Replace("-", " ")), "recovery key works (any case or spacing)");
+            Vault.ChangeSecret("hunter22", "Password");
+            Vault.Lock();
+            Assert(!Vault.Unlock("2468"), "old PIN no longer works");
+            Assert(Vault.Unlock("hunter22"), "new password works");
+            AreEqual("Password", Vault.Info.Kind, "now a password");
+            var key = Vault.CopyKey();
+            Vault.Lock();
+            Assert(Vault.UnlockWithKey(key), "the key Windows Hello keeps unlocks it");
+            Assert(!Vault.UnlockWithKey(new byte[32]), "a wrong key doesn't");
+            Log($"INFO Windows Hello available on the build machine: {await WindowsHello.IsAvailableAsync()}");
+            Assert(!WindowsHello.IsOn, "Windows Hello is off until turned on");
+        });
+
+        await Test("Locked album: tampering is detected", () =>
+        {
+            var key = Vault.CopyKey();
+            var f = Directory.GetFiles(IOPath.Combine(Vault.Folder, "items")).First();
+            var b = File.ReadAllBytes(f);
+            Vault.DecryptBytes(b, key);
+            var changed = b.ToArray();
+            changed[changed.Length / 2] ^= 0x40;
+            bool caught = false;
+            try { Vault.DecryptBytes(changed, key); } catch (System.Security.Cryptography.CryptographicException) { caught = true; }
+            Assert(caught, "a changed byte is caught");
+            caught = false;
+            try { Vault.DecryptBytes(b.Take(b.Length - 10).ToArray(), key); } catch (Exception) { caught = true; }
+            Assert(caught, "a cut-short file is caught");
+            // a big file goes through in 1 MB pieces
+            var big = new byte[3 * 1024 * 1024 + 123];
+            new Random(5).NextBytes(big);
+            Assert(Vault.DecryptBytes(Vault.EncryptBytes(big, key), key).AsSpan().SequenceEqual(big), "multi-piece round trip");
+        });
+
+        await Test("Locked album: restore and delete", async () =>
+        {
+            var restoreDir = IOPath.Combine(root, "Restored");
+            var lp = Vault.Photos.First(p => p.FileName == lockedOriginals[1].FileName);
+            var n = await RestoreFromLockedAsync(new List<Photo> { lp }, restoreDir);
+            AreEqual(1, n, "restored");
+            var restored = IOPath.Combine(restoreDir, lp.FileName);
+            Assert(File.Exists(restored) && File.ReadAllBytes(restored).AsSpan().SequenceEqual(File.ReadAllBytes(lockedOriginals[1].Path)), "restored file is identical");
+            AreEqual(2, Vault.Count, "taken out of the Locked album");
+            DeleteFromLocked(new List<Photo> { Vault.Photos.First(p => p.IsVideo) });
+            AreEqual(1, Vault.Count, "deleted");
+            AreEqual(1, Directory.GetFiles(IOPath.Combine(Vault.Folder, "items")).Length, "its encrypted file is gone");
+        });
+
+        await Test("Locked album: move to a cloud folder and open it on another PC", async () =>
+        {
+            var cloud = IOPath.Combine(root, "OneDrive");
+            Directory.CreateDirectory(cloud);
+            var problem = await Vault.MoveToAsync(cloud);
+            Assert(problem == null, problem);
+            AreEqual(IOPath.Combine(cloud, Vault.PortableFolderName), Vault.Folder, "new location");
+            Assert(!Directory.Exists(Vault.DefaultFolder), "old copy removed");
+            Vault.Lock();
+            Assert(Vault.Unlock("hunter22"), "unlocks in its new place");
+            AreEqual(1, Vault.Count, "contents moved");
+
+            // "another PC": a copy of the folder, and a Shutterbox that has never seen it
+            var otherParent = IOPath.Combine(root, "OtherPC");
+            var other = IOPath.Combine(otherParent, Vault.PortableFolderName);
+            foreach (var f in Directory.GetFiles(Vault.Folder, "*", SearchOption.AllDirectories))
+            {
+                var dest = IOPath.Combine(other, IOPath.GetRelativePath(Vault.Folder, f));
+                Directory.CreateDirectory(IOPath.GetDirectoryName(dest));
+                File.Copy(f, dest);
+            }
+            Vault.Lock();
+            S.LockedFolder = "";
+            Assert(!Vault.IsSetUp, "a new PC has no Locked album");
+            var p2 = Vault.OpenFolder(otherParent);
+            Assert(p2 == null, p2);
+            Assert(Vault.IsSetUp && !Vault.IsUnlocked, "opened, still locked");
+            Assert(Vault.Unlock("hunter22"), "unlocks with the same password");
+            AreEqual(1, Vault.Count, "same contents");
+            ShowView(LibraryView.Settings);
+            await Idle();
+            Shot("20-settings-locked");
+            ShowView(LibraryView.Photos);
+            await Idle();
+        });
+
         await Test("Import from a camera card", async () =>
         {
             var dlg = new ImportDialog(this, new[] { card }) { Owner = this };
@@ -556,6 +755,7 @@ public partial class MainWindow
             Assert(EmptyState.Visibility == Visibility.Visible, "back to the welcome screen");
         });
 
+        Vault.Lock();
         if (Thumbnails.LastError != null) Log("INFO last picture error: " + Thumbnails.LastError);
         int fails = _testFails;
         Log($"\r\n{_testLog.Count(l => l.StartsWith("PASS") || l.StartsWith("FAIL")) - fails} passed, {fails} failed");
@@ -807,5 +1007,69 @@ internal static class SamplePhotos
         }
         foreach (var name in new[] { "IMG_4100.jpg", "IMG_4101.jpg" })
             File.Copy(IOPath.Combine(pics, "Portland", name), IOPath.Combine(card, name));
+    }
+}
+
+/// <summary>Writes a small uncompressed AVI (moving colour bands) so the self-test has real videos to find.</summary>
+internal static class SampleVideo
+{
+    public static void WriteAvi(string path, int w, int h, int frames, int fps, int seed)
+    {
+        Directory.CreateDirectory(IOPath.GetDirectoryName(path));
+        int stride = (w * 3 + 3) & ~3;
+        int frameBytes = stride * h;
+        using var fs = File.Create(path);
+        using var bw = new BinaryWriter(fs);
+        void Fcc(string s) => bw.Write(System.Text.Encoding.ASCII.GetBytes(s));
+        long riffSizePos, hdrlSizePos, strlSizePos, moviSizePos;
+
+        Fcc("RIFF"); riffSizePos = fs.Position; bw.Write(0); Fcc("AVI ");
+        Fcc("LIST"); hdrlSizePos = fs.Position; bw.Write(0); Fcc("hdrl");
+        Fcc("avih"); bw.Write(56);
+        bw.Write(1_000_000 / fps); bw.Write(frameBytes * fps); bw.Write(0); bw.Write(0x10);
+        bw.Write(frames); bw.Write(0); bw.Write(1); bw.Write(frameBytes); bw.Write(w); bw.Write(h);
+        bw.Write(0); bw.Write(0); bw.Write(0); bw.Write(0);
+        Fcc("LIST"); strlSizePos = fs.Position; bw.Write(0); Fcc("strl");
+        Fcc("strh"); bw.Write(56);
+        Fcc("vids"); Fcc("DIB "); bw.Write(0); bw.Write((short)0); bw.Write((short)0); bw.Write(0);
+        bw.Write(1); bw.Write(fps); bw.Write(0); bw.Write(frames); bw.Write(frameBytes); bw.Write(-1); bw.Write(0);
+        bw.Write((short)0); bw.Write((short)0); bw.Write((short)w); bw.Write((short)h);
+        Fcc("strf"); bw.Write(40);
+        bw.Write(40); bw.Write(w); bw.Write(h); bw.Write((short)1); bw.Write((short)24); bw.Write(0); bw.Write(frameBytes);
+        bw.Write(0); bw.Write(0); bw.Write(0); bw.Write(0);
+        Patch(bw, strlSizePos);
+        Patch(bw, hdrlSizePos);
+
+        Fcc("LIST"); moviSizePos = fs.Position; bw.Write(0); long moviStart = fs.Position; Fcc("movi");
+        var offsets = new List<int>();
+        var rnd = new Random(seed);
+        byte r0 = (byte)rnd.Next(60, 255), g0 = (byte)rnd.Next(60, 255), b0 = (byte)rnd.Next(60, 255);
+        var frame = new byte[frameBytes];
+        for (int f = 0; f < frames; f++)
+        {
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    int i = y * stride + x * 3;
+                    bool band = ((x + f * 4) / 16) % 2 == 0;
+                    frame[i] = band ? b0 : (byte)(255 - b0);
+                    frame[i + 1] = (byte)(g0 * y / h);
+                    frame[i + 2] = band ? r0 : (byte)(x * 255 / w);
+                }
+            offsets.Add((int)(fs.Position - moviStart));
+            Fcc("00db"); bw.Write(frameBytes); bw.Write(frame);
+        }
+        Patch(bw, moviSizePos);
+        Fcc("idx1"); bw.Write(frames * 16);
+        foreach (var o in offsets) { Fcc("00db"); bw.Write(0x10); bw.Write(o); bw.Write(frameBytes); }
+        Patch(bw, riffSizePos);
+    }
+
+    private static void Patch(BinaryWriter bw, long sizePos)
+    {
+        long end = bw.BaseStream.Position;
+        bw.BaseStream.Position = sizePos;
+        bw.Write((int)(end - sizePos - 4));
+        bw.BaseStream.Position = end;
     }
 }

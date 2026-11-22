@@ -58,7 +58,7 @@ public static class Scanner
                 foreach (var path in files)
                 {
                     ct.ThrowIfCancellationRequested();
-                    if (!MetadataReader.IsPicture(path)) continue;
+                    if (!MetadataReader.IsMedia(path)) continue;
                     if (!seen.Add(path)) continue;
                     FileInfo fi;
                     try { fi = new FileInfo(path); if (!fi.Exists || fi.Length == 0) continue; }

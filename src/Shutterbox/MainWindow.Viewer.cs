@@ -43,6 +43,7 @@ public partial class MainWindow
 
     public void CloseViewer()
     {
+        StopVideo();
         StopSlideshow();
         _viewCts?.Cancel();
         ViewerLayer.Visibility = Visibility.Collapsed;
@@ -82,9 +83,15 @@ public partial class MainWindow
         _viewCts = new CancellationTokenSource();
         var ct = _viewCts.Token;
         var p = _viewList[_viewIndex];
+        StopVideo();
         _viewPhoto = p;
         _fullLoaded = false;
         ResetZoom();
+        // Locked items can't be edited, shared or favorited; videos don't zoom
+        var plain = p.IsLocked ? Visibility.Collapsed : Visibility.Visible;
+        ViewerFavBtn.Visibility = ViewerEditBtn.Visibility = ViewerShareBtn.Visibility = plain;
+        var still = p.IsVideo ? Visibility.Collapsed : Visibility.Visible;
+        ViewerZoomInBtn.Visibility = ViewerZoomOutBtn.Visibility = ViewerRotateBtn.Visibility = still;
 
         ViewerTitle.Text = p.FileName;
         var parts = new List<string> { p.Taken.ToString("dddd, MMMM d, yyyy · h:mm tt", CultureInfo.CurrentCulture) };
@@ -112,6 +119,12 @@ public partial class MainWindow
             ViewerImage.BeginAnimation(OpacityProperty, null);
             ViewerFade.Opacity = 0;
             ViewerImage.Opacity = 1;
+        }
+
+        if (p.IsVideo)
+        {
+            ShowVideo(p, ct);
+            return;
         }
 
         // Thumbnail first so something shows immediately, then the screen-sized picture
@@ -318,6 +331,12 @@ public partial class MainWindow
             case Key.Right: case Key.PageDown: ViewerStep(1); break;
             case Key.Home: _viewIndex = 0; ShowViewerPhoto(false); break;
             case Key.End: _viewIndex = _viewList.Count - 1; ShowViewerPhoto(false); break;
+            case Key.Space when p?.IsVideo == true:
+                VideoPlay_Click(null, null);
+                break;
+            case Key.M when p?.IsVideo == true:
+                VideoMute_Click(null, null);
+                break;
             case Key.Space: case Key.F5:
                 if (_slideshow) StopSlideshow(); else StartSlideshowHere();
                 break;
@@ -345,7 +364,7 @@ public partial class MainWindow
     private void ViewerFavorite_Click(object sender, RoutedEventArgs e)
     {
         var p = _viewPhoto;
-        if (p == null) return;
+        if (p == null || p.IsLocked) return;
         Lib.SetFavorite(new[] { p }, !p.Favorite);
         ViewerFavBtn.Content = p.Favorite ? "" : "";
         ViewerFavBtn.Foreground = p.Favorite ? (Brush)FindResource("Accent") : (Brush)FindResource("ViewerText");
@@ -367,6 +386,7 @@ public partial class MainWindow
     {
         var p = _viewPhoto;
         if (p == null) return;
+        if (p.IsLocked) { DeleteFromLocked(new List<Photo> { p }); return; }
         if (p.IsTrashed) return;
         Lib.Trash(new[] { p });
         ShowToast("Moved to Trash", "Undo", () => Lib.Restore(new[] { p }));
@@ -386,7 +406,7 @@ public partial class MainWindow
     {
         if (photos == null && _selected.Count > 1) photos = SelectedPhotos;
         var list = photos ?? _flat.Select(i => i.Photo).ToList();
-        list = list.Where(p => !p.Unreadable).ToList();
+        list = list.Where(p => !p.Unreadable && !p.IsVideo).ToList();
         if (list.Count == 0) { ShowToast("There are no photos to show."); return; }
         // A slideshow tells the story in order: oldest first
         list = list.OrderBy(p => p.Taken).ToList();
@@ -422,5 +442,159 @@ public partial class MainWindow
     {
         if (!_slideshow || !ViewerOpen) { _slideTimer.Stop(); return; }
         ViewerStep(1);
+    }
+
+    // ------------------------------------------------------------------ video
+
+    private bool _videoPlaying;
+    private bool _seeking;
+    private string _videoTemp;
+    private DispatcherTimer _videoTimer;
+
+    public bool VideoShowing => ViewerVideo.Visibility == Visibility.Visible;
+    public bool VideoOpened { get; private set; }
+
+    private async void ShowVideo(Photo p, CancellationToken ct)
+    {
+        VideoOpened = false;
+        ViewerMessage.Visibility = Visibility.Collapsed;
+        ViewerImage.Source = Thumbnails.Get(p, null); // the still, until the video starts
+        ViewerVideo.Visibility = Visibility.Visible;
+        ViewerVideoBar.Visibility = Visibility.Visible;
+        VideoSeek.Value = 0;
+        VideoTime.Text = p.IsLocked ? "Decrypting…" : "Loading…";
+        string path = p.Path;
+        if (p.IsLocked)
+        {
+            try { path = await Vault.DecryptForPlaybackAsync(p); }
+            catch (Exception ex)
+            {
+                if (_viewPhoto == p) ShowVideoProblem(p, "Couldn't open it: " + ex.Message);
+                return;
+            }
+            if (ct.IsCancellationRequested || _viewPhoto != p || !ViewerOpen)
+            {
+                TryDelete(path);
+                return;
+            }
+            _videoTemp = path;
+        }
+        if (!File.Exists(path)) { ShowVideoProblem(p, $"{p.FileName} isn't there any more.\nIt may have been moved, renamed or deleted."); return; }
+        _videoTimer ??= MakeVideoTimer();
+        ViewerVideo.Source = new Uri(path);
+        ViewerVideo.Play();
+        _videoPlaying = true;
+        VideoPlayBtn.Content = "\uE769";
+        _videoTimer.Start();
+    }
+
+    private DispatcherTimer MakeVideoTimer()
+    {
+        var t = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+        t.Tick += (_, _) =>
+        {
+            if (!VideoShowing) return;
+            var pos = ViewerVideo.Position;
+            var dur = ViewerVideo.NaturalDuration.HasTimeSpan ? ViewerVideo.NaturalDuration.TimeSpan : TimeSpan.Zero;
+            if (!_seeking && dur > TimeSpan.Zero) VideoSeek.Value = Math.Min(pos.TotalSeconds, VideoSeek.Maximum);
+            if (dur > TimeSpan.Zero) VideoTime.Text = $"{Photo.FormatDuration(pos.TotalSeconds) is { Length: > 0 } a ? a : "0:00"} / {Photo.FormatDuration(dur.TotalSeconds)}";
+            if (_videoPlaying) Vault.LastActivity = DateTime.Now;
+        };
+        return t;
+    }
+
+    private void ShowVideoProblem(Photo p, string message)
+    {
+        StopVideo();
+        ViewerImage.Source = Thumbnails.Get(p, null);
+        ViewerMessage.Visibility = Visibility.Visible;
+        ViewerMessageText.Text = message;
+    }
+
+    /// <summary>Stops playback and removes a decrypted Locked album video.</summary>
+    public void StopVideo()
+    {
+        _videoTimer?.Stop();
+        _videoPlaying = false;
+        VideoOpened = false;
+        try
+        {
+            ViewerVideo.Stop();
+            ViewerVideo.Close();
+            ViewerVideo.Source = null;
+        }
+        catch { }
+        ViewerVideo.Visibility = Visibility.Collapsed;
+        ViewerVideoBar.Visibility = Visibility.Collapsed;
+        if (_videoTemp != null)
+        {
+            var temp = _videoTemp;
+            _videoTemp = null;
+            // the player lets go of the file a moment after closing
+            Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => TryDelete(temp)));
+        }
+    }
+
+    private static void TryDelete(string path)
+    {
+        try { if (File.Exists(path)) { File.SetAttributes(path, FileAttributes.Normal); File.Delete(path); } } catch { }
+    }
+
+    private void ViewerVideo_MediaOpened(object sender, RoutedEventArgs e)
+    {
+        VideoOpened = true;
+        ViewerImage.Source = null;
+        if (ViewerVideo.NaturalDuration.HasTimeSpan)
+        {
+            VideoSeek.Maximum = Math.Max(0.1, ViewerVideo.NaturalDuration.TimeSpan.TotalSeconds);
+            VideoTime.Text = "0:00 / " + Photo.FormatDuration(ViewerVideo.NaturalDuration.TimeSpan.TotalSeconds);
+        }
+    }
+
+    private void ViewerVideo_MediaEnded(object sender, RoutedEventArgs e)
+    {
+        ViewerVideo.Pause();
+        ViewerVideo.Position = TimeSpan.Zero;
+        _videoPlaying = false;
+        VideoPlayBtn.Content = "\uE768";
+    }
+
+    private void ViewerVideo_MediaFailed(object sender, ExceptionRoutedEventArgs e)
+    {
+        var p = _viewPhoto;
+        if (p == null) return;
+        ShowVideoProblem(p, $"Windows can't play {p.FileName}.\nIt may need a video extension from the Microsoft Store (HEVC, AV1 or VP9), or the file may be damaged.");
+    }
+
+    private void ViewerVideo_Click(object sender, MouseButtonEventArgs e)
+    {
+        VideoPlay_Click(null, null);
+        e.Handled = true;
+    }
+
+    private void VideoPlay_Click(object sender, RoutedEventArgs e)
+    {
+        if (!VideoShowing) return;
+        if (_videoPlaying) { ViewerVideo.Pause(); _videoPlaying = false; VideoPlayBtn.Content = "\uE768"; }
+        else { ViewerVideo.Play(); _videoPlaying = true; VideoPlayBtn.Content = "\uE769"; _videoTimer?.Start(); }
+    }
+
+    private void VideoMute_Click(object sender, RoutedEventArgs e)
+    {
+        ViewerVideo.IsMuted = !ViewerVideo.IsMuted;
+        VideoMuteBtn.Content = ViewerVideo.IsMuted ? "\uE74F" : "\uE767";
+    }
+
+    private void VideoSeek_MouseDown(object sender, MouseButtonEventArgs e) => _seeking = true;
+
+    private void VideoSeek_MouseUp(object sender, MouseButtonEventArgs e)
+    {
+        _seeking = false;
+        if (VideoShowing) ViewerVideo.Position = TimeSpan.FromSeconds(VideoSeek.Value);
+    }
+
+    private void VideoSeek_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_seeking && VideoShowing) ViewerVideo.Position = TimeSpan.FromSeconds(e.NewValue);
     }
 }

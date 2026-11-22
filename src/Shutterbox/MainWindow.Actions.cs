@@ -24,7 +24,11 @@ public partial class MainWindow
     {
         if (photos.Count == 0) return;
         foreach (var p in photos) Thumbnails.Forget(p);
-        Lib.Rotate(photos, degrees);
+        var locked = photos.Where(p => p.IsLocked).ToList();
+        foreach (var p in locked) { p.Rotation = ((p.Rotation + degrees) % 360 + 360) % 360; Vault.Rotate(p, degrees); }
+        var normal = photos.Where(p => !p.IsLocked).ToList();
+        if (normal.Count > 0) Lib.Rotate(normal, degrees);
+        foreach (var p in locked) ItemFor(p).Refresh();
         _infoPhoto = null; // reload the preview
         UpdateInfo();
     }
@@ -189,6 +193,17 @@ public partial class MainWindow
         if (photos.Count == 0) return;
         var m = NewMenu(target);
         var one = photos.Count == 1 ? photos[0] : null;
+        if (_view == LibraryView.Locked)
+        {
+            if (one != null) Item(m, "\uE8A7", "Open", () => OpenViewer(one), true, "Enter");
+            Item(m, "\uE7AD", "Rotate right", () => RotatePhotos(photos, 90), true, "R");
+            Item(m, "\uE7AD", "Rotate left", () => RotatePhotos(photos, -90), true, "Shift+R");
+            m.Items.Add(new Separator());
+            Item(m, "\uE785", "Restore to a folder…", () => RestoreFromLocked(photos));
+            Item(m, "\uE74D", "Delete from Locked album…", () => DeleteFromLocked(photos), true, "Delete");
+            m.IsOpen = true;
+            return;
+        }
         if (_view == LibraryView.Trash)
         {
             Item(m, "", photos.Count == 1 ? "Restore" : $"Restore {photos.Count:N0} photos", () => RestorePhotos(photos));
@@ -222,6 +237,7 @@ public partial class MainWindow
             Item(m, "", "Set as desktop background", () => ShowToast(Shell.SetWallpaper(one.Path) ? "Desktop background changed" : "Couldn't set the desktop background"));
         }
         Item(m, "", "Slideshow", () => StartSlideshow(photos.Count > 1 ? photos : null), true, "F5");
+        Item(m, "\uE72E", "Lock (copy into the Locked album)", () => AddToLocked(photos));
         m.Items.Add(new Separator());
         Item(m, "", "Move to Trash", () => TrashPhotos(photos), true, "Delete");
         m.IsOpen = true;

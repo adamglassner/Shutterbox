@@ -33,6 +33,8 @@ public sealed class PhotoItem : Observable
 
     public Visibility SelectedVisibility => _selected ? Visibility.Visible : Visibility.Collapsed;
     public Visibility FavoriteVisibility => Photo.Favorite ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility VideoVisibility => Photo.IsVideo ? Visibility.Visible : Visibility.Collapsed;
+    public string DurationText => Photo.IsVideo ? (Photo.DurationText is { Length: > 0 } d ? d : "Video") : "";
     public Visibility FailedVisibility => Photo.Unreadable || Thumbnails.HasFailed(Photo) ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>Asks the thumbnail service each time; it answers from memory or starts making the thumbnail.</summary>
@@ -66,6 +68,7 @@ public sealed class PhotoItem : Observable
             p.Favorite ? "favorite favourite" : null,
             p.HasLocation ? "location gps map" : null,
             p.Unreadable ? "unreadable" : null,
+            p.IsVideo ? "video movie clip" : "photo picture",
         };
         parts.AddRange(p.Tags);
         if (albumNames != null) parts.AddRange(albumNames);
