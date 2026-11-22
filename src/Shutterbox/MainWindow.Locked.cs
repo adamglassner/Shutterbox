@@ -213,7 +213,7 @@ public partial class MainWindow
         if (r.added > 0 && originals.Count > 0)
             ShowToast(msg + ". The originals are still in your library.", "Delete originals", () => DeleteOriginals(originals));
         else ShowToast(msg + ".");
-        return r;
+        return (r.added, r.skipped, r.errors);
     }
 
     /// <summary>After locking: sends the originals to the Recycle Bin and takes them out of the library.</summary>
