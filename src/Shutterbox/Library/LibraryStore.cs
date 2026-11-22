@@ -320,6 +320,32 @@ public sealed class LibraryStore
         return (done.Count, failed);
     }
 
+    /// <summary>
+    /// Deletes files for good (not to the Recycle Bin) and forgets them. Used after moving photos into the Locked album,
+    /// so no unencrypted copy is left in the Recycle Bin.
+    /// </summary>
+    public (int deleted, List<Photo> failed) DeleteForGood(IEnumerable<Photo> photos)
+    {
+        var done = new List<Photo>();
+        var failed = new List<Photo>();
+        foreach (var p in photos.ToList())
+        {
+            try
+            {
+                if (File.Exists(p.Path))
+                {
+                    File.SetAttributes(p.Path, FileAttributes.Normal);
+                    File.Delete(p.Path);
+                }
+                done.Add(p);
+            }
+            catch { failed.Add(p); }
+        }
+        RemovePhotosInternal(done.Where(p => _byId.ContainsKey(p.Id)).ToList());
+        Raise(LibraryChange.Photos | LibraryChange.Albums);
+        return (done.Count, failed);
+    }
+
     // ------------------------------------------------------------------ albums
 
     public Album CreateAlbum(string name)

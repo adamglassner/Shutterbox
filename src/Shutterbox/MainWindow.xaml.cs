@@ -317,6 +317,7 @@ public partial class MainWindow : Window
             Timeline.Visibility = Visibility.Collapsed;
             EmptyState.Visibility = Visibility.Collapsed;
             Banner.Visibility = Visibility.Collapsed;
+            LockedAlbumBar.Visibility = Visibility.Collapsed;
             _flat = new();
             _indexOf.Clear();
             ClearSelection();
@@ -383,7 +384,8 @@ public partial class MainWindow : Window
                 return all.Where(p => !p.IsTrashed && p.IsVideo).OrderByDescending(p => p.Taken);
             case LibraryView.Locked:
                 // photos first, then videos, newest first in each
-                return Vault.Photos.OrderBy(p => p.IsVideo).ThenByDescending(p => p.Taken);
+                var lockedAlbum = Vault.GetAlbum(_lockedAlbumId);
+                return (lockedAlbum != null ? Vault.PhotosIn(lockedAlbum) : Vault.Photos).OrderBy(p => p.IsVideo).ThenByDescending(p => p.Taken);
             case LibraryView.Favorites:
                 return all.Where(p => !p.IsTrashed && p.Favorite).OrderByDescending(p => p.Taken);
             case LibraryView.Recent:
@@ -664,7 +666,9 @@ public partial class MainWindow : Window
             case LibraryView.Videos: title = "Videos"; sub = n == 1 ? "1 video" : $"{n:N0} videos"; break;
             case LibraryView.Locked:
                 title = "Locked";
-                sub = !Vault.IsSetUp ? "Encrypted, for your eyes only" : Vault.IsUnlocked ? items(n) + " · encrypted" : "Locked";
+                sub = !Vault.IsSetUp ? "Encrypted, for your eyes only"
+                    : !Vault.IsUnlocked ? "Locked"
+                    : Vault.GetAlbum(_lockedAlbumId) is VaultAlbum shown ? $"{shown.Name} · {items(n)} · encrypted" : items(n) + " · encrypted";
                 break;
             case LibraryView.Favorites: title = "Favorites"; sub = items(n); break;
             case LibraryView.Recent: title = "Recently added"; sub = items(n) + " in the last 30 days"; break;
@@ -693,6 +697,7 @@ public partial class MainWindow : Window
     private void UpdateBanner()
     {
         BannerActions.Children.Clear();
+        LockedAlbumBar.Visibility = Visibility.Collapsed;
         string icon = null, text = null;
         void Act(string label, Action a, bool accent = false)
         {
@@ -709,6 +714,7 @@ public partial class MainWindow : Window
                        (mins > 0 ? $", and the album locks itself after {mins} minute{(mins == 1 ? "" : "s")} without use." : ".");
                 Act("Add files…", () => AddFilesToLocked());
                 Act("Lock now", () => LockNow(), true);
+                BuildLockedAlbumBar();
                 break;
             case LibraryView.Trash when _flat.Count > 0:
                 icon = "";
@@ -766,6 +772,7 @@ public partial class MainWindow : Window
             else switch (_view)
             {
                 case LibraryView.Videos: title = "No videos yet"; text = _scanning ? "Still looking…" : "Videos in your library folders show up here, apart from your photos. Import them from a phone or camera, or add a folder that has them."; break;
+                case LibraryView.Locked when Vault.GetAlbum(_lockedAlbumId) != null: title = "This album is empty"; text = "Select items in All and choose Add to album, or use Add files while this album is open."; break;
                 case LibraryView.Locked: title = "Nothing locked yet"; text = "Select photos or videos anywhere in Shutterbox and choose Lock, drag them onto Locked in the sidebar, or use Add files."; break;
                 case LibraryView.Favorites: title = "No favorites yet"; text = "Press F or click the heart on a photo to keep your best shots here."; break;
                 case LibraryView.Recent: title = "Nothing new"; text = "Photos added to your library in the last 30 days show up here."; break;
@@ -905,11 +912,12 @@ public partial class MainWindow : Window
     private void UpdateSelectionUi()
     {
         int n = _selected.Count;
-        SelectionBar.Visibility = n > 1 || (n == 1 && !InfoShown) ? Visibility.Visible : Visibility.Collapsed;
-        if (n == 0) return;
-        SelectionText.Text = n == 1 ? "1 selected" : $"{n:N0} selected";
+        bool modeBar = _selectMode && _view is not (LibraryView.Settings or LibraryView.Albums) && !(_view == LibraryView.Locked && !Vault.IsUnlocked);
+        SelectionBar.Visibility = n > 1 || (n == 1 && !InfoShown) || modeBar ? Visibility.Visible : Visibility.Collapsed;
+        if (SelectionBar.Visibility != Visibility.Visible) return;
+        SelectionText.Text = n == 0 ? "Click or drag to select" : n == 1 ? "1 selected" : $"{n:N0} selected";
         SelectionActions.Children.Clear();
-        void Act(string glyph, string label, Action a, string tip = null)
+        Button Act(string glyph, string label, Action a, string tip = null)
         {
             var sp = new StackPanel { Orientation = Orientation.Horizontal };
             sp.Children.Add(new TextBlock { Text = glyph, FontFamily = (FontFamily)FindResource("IconFont"), FontSize = 13, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 1, 8, 0) });
@@ -917,10 +925,18 @@ public partial class MainWindow : Window
             var b = new Button { Style = (Style)FindResource("BarButton"), Content = sp, ToolTip = tip };
             b.Click += (_, _) => a();
             SelectionActions.Children.Add(b);
+            return b;
         }
+        if (_flat.Count > 0 && n < _flat.Count) Act("\uE8B3", "Select all", SelectAll, "Ctrl+A");
+        if (_selectMode) Act("\uE73E", "Done", () => { ClearSelection(); SetSelectMode(false); SelectionChanged(); }, "Esc");
+        if (n == 0) return;
         var sel = SelectedPhotos;
         if (_view == LibraryView.Locked)
         {
+            Button lab = null;
+            lab = Act("\uE8B9", "Add to album", () => ShowLockedAlbumMenu(lab, SelectedPhotos), "An album inside the Locked album");
+            if (Vault.GetAlbum(_lockedAlbumId) is VaultAlbum va)
+                Act("\uE738", "Remove from album", () => { Vault.RemoveFromAlbum(va, SelectedPhotos); ClearSelection(); SelectionChanged(); });
             Act("\uE7AD", "Rotate", () => RotatePhotos(SelectedPhotos, 90), "R");
             Act("\uE786", "Slideshow", () => StartSlideshow(SelectedPhotos));
             Act("\uE785", "Restore…", () => RestoreFromLocked(SelectedPhotos), "Decrypt to a folder and take them out of the Locked album");
@@ -935,12 +951,14 @@ public partial class MainWindow : Window
         }
         bool allFav = sel.All(p => p.Favorite);
         Act(allFav ? "" : "", allFav ? "Unfavorite" : "Favorite", () => ToggleFavorite(SelectedPhotos), "F");
-        Act("", "Add to album", () => ShowAddToAlbumMenu(SelectionActions.Children[1] as FrameworkElement, SelectedPhotos));
+        Button ab = null;
+        ab = Act("", "Add to album", () => ShowAddToAlbumMenu(ab, SelectedPhotos));
         if (_view == LibraryView.Album && Lib.GetAlbum(_albumId) is Album al)
             Act("", "Remove from album", () => RemoveFromAlbum(al, SelectedPhotos));
         Act("", "Rotate", () => RotatePhotos(SelectedPhotos, 90), "R");
         Act("", "Copy", () => CopyPhotos(SelectedPhotos), "Ctrl+C");
-        Act("\uE72E", "Lock", () => AddToLocked(SelectedPhotos), "Copy into the encrypted Locked album");
+        Button lb = null;
+        lb = Act("\uE72E", "Lock", () => ShowLockMenu(lb, SelectedPhotos), "Copy or move into the encrypted Locked album");
         Act("", "Slideshow", () => StartSlideshow(SelectedPhotos));
         Act("", "Move to Trash", () => TrashPhotos(SelectedPhotos), "Delete");
     }
@@ -956,6 +974,12 @@ public partial class MainWindow : Window
         if ((sender as FrameworkElement)?.DataContext is not PhotoItem it) return;
         e.Handled = true;
         Keyboard.Focus(this);
+        if (_selectMode && !Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
+        {
+            // in Select mode a click adds or removes, and dragging across tiles does the same to each
+            if (e.ClickCount == 1) { BeginPaint(it, !it.IsSelected); _anchor = _indexOf.TryGetValue(it.Photo.Id, out var si) ? si : _anchor; }
+            return;
+        }
         if (e.ClickCount >= 2)
         {
             SelectOnly(it);
@@ -993,7 +1017,7 @@ public partial class MainWindow : Window
 
     private void Tile_MouseMove(object sender, MouseEventArgs e)
     {
-        if (_downItem == null || e.LeftButton != MouseButtonState.Pressed || _view == LibraryView.Locked) return;
+        if (_downItem == null || e.LeftButton != MouseButtonState.Pressed || _view == LibraryView.Locked || _painting || _selectMode) return;
         var p = e.GetPosition(this);
         if (Math.Abs(p.X - _downPos.X) < 6 && Math.Abs(p.Y - _downPos.Y) < 6) return;
         var photos = _downItem.IsSelected ? SelectedPhotos : new List<Photo> { _downItem.Photo };
@@ -1024,12 +1048,10 @@ public partial class MainWindow : Window
         {
             if (d is FrameworkElement fe && (fe.Tag as string == "tile" || fe is ButtonBase || fe is ScrollBar || fe is Thumb)) return;
         }
-        if (_selected.Count > 0)
-        {
-            ClearSelection();
-            SelectionChanged();
-        }
         Keyboard.Focus(this);
+        if (_view is LibraryView.Settings or LibraryView.Albums || _flat.Count == 0) return;
+        BeginMarquee(e);
+        e.Handled = true;
     }
 
     // ================================================================== keyboard
@@ -1064,6 +1086,7 @@ public partial class MainWindow : Window
             case Key.R when ctrl: _ = StartScan(null); e.Handled = true; return;
             case Key.Escape:
                 if (_selected.Count > 0) { ClearSelection(); SelectionChanged(); }
+                else if (_selectMode) SetSelectMode(false);
                 else if (SearchBox.Text.Length > 0) SearchBox.Text = "";
                 e.Handled = true; return;
             case Key.Enter:
@@ -1087,6 +1110,7 @@ public partial class MainWindow : Window
                 InfoToggle.IsChecked = !(InfoToggle.IsChecked == true);
                 InfoToggle_Click(null, null);
                 e.Handled = true; return;
+            case Key.Space: ToggleFocused(); e.Handled = true; return;
             case Key.Left: MoveFocus(-1, mods); e.Handled = true; return;
             case Key.Right: MoveFocus(1, mods); e.Handled = true; return;
             case Key.Up: MoveFocus(-_cols, mods); e.Handled = true; return;

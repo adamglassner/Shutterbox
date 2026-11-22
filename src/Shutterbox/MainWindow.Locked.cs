@@ -1,3 +1,4 @@
+using System.Windows.Controls;
 using System.Windows.Input;
 using Microsoft.Win32;
 using Shutterbox.Library;
@@ -12,12 +13,17 @@ public partial class MainWindow
     private readonly DispatcherTimer _autoLockTimer;
     /// <summary>Photos waiting to be locked once the album is unlocked or set up.</summary>
     private List<Photo> _pendingLock;
+    private bool _pendingMove;
+    private string _pendingAlbum;
+    /// <summary>The album shown inside the Locked album (null = all of it).</summary>
+    private string _lockedAlbumId;
     private bool _gateRecovery;
 
     // ================================================================== state changes
 
     private void OnVaultChanged()
     {
+        if (!Vault.IsUnlocked || (_lockedAlbumId != null && Vault.GetAlbum(_lockedAlbumId) == null)) _lockedAlbumId = null;
         RefreshSidebar();
         if (!Vault.IsUnlocked && ViewerOpen && _viewPhoto?.IsLocked == true) CloseViewer();
         if (_view == LibraryView.Locked) { UpdateHeaderControls(); RebuildView(true); }
@@ -148,34 +154,60 @@ public partial class MainWindow
         else RebuildView(false);
         var pending = _pendingLock;
         _pendingLock = null;
-        if (pending?.Count > 0) await LockPhotosAsync(pending);
+        if (pending?.Count > 0) await LockPhotosAsync(pending, _pendingMove, _pendingAlbum);
     }
 
     // ================================================================== adding
 
-    /// <summary>Copies photos and videos into the Locked album (asks to unlock or set it up first).</summary>
-    public async void AddToLocked(List<Photo> photos)
+    /// <summary>
+    /// Copies (or moves) photos and videos into the Locked album, optionally into one of its albums.
+    /// Asks to unlock or set it up first.
+    /// </summary>
+    public async void AddToLocked(List<Photo> photos, bool move = false, string albumId = null)
     {
         photos = photos.Where(p => !p.IsLocked).ToList();
         if (photos.Count == 0) return;
         if (!Vault.IsSetUp || !Vault.IsUnlocked)
         {
             _pendingLock = photos;
+            _pendingMove = move;
+            _pendingAlbum = albumId;
             ShowView(LibraryView.Locked);
             if (!Vault.IsSetUp) SetUpLocked();
             return;
         }
-        await LockPhotosAsync(photos);
+        await LockPhotosAsync(photos, move, albumId);
     }
 
     /// <summary>The actual copy. The self-test calls it directly.</summary>
-    public async Task<(int added, int skipped, List<string> errors)> LockPhotosAsync(List<Photo> photos)
+    public async Task<(int added, int skipped, List<string> errors)> LockPhotosAsync(List<Photo> photos, bool move = false, string albumId = null)
     {
+        if (move && !Confirm($"Move {(photos.Count == 1 ? "this item" : $"these {photos.Count:N0} items")} into the Locked album?\n\n" +
+                             "Each one is encrypted and checked, then the original is deleted from this PC. It doesn't go to the Recycle Bin, " +
+                             "so no unlocked copy is left behind. You can restore them from the Locked album any time.", "Move to Locked album"))
+            return (0, 0, new List<string>());
+        var album = Vault.GetAlbum(albumId);
+        var verb = move ? "Moving" : "Encrypting";
         var progress = new Progress<(int done, int total)>(p =>
-            ShowToast(p.total == 1 ? "Encrypting into the Locked album…" : $"Encrypting into the Locked album: {p.done:N0} of {p.total:N0}…"));
-        var r = await Vault.AddAsync(photos, progress);
+            ShowToast(p.total == 1 ? $"{verb} into the Locked album…" : $"{verb} into the Locked album: {p.done:N0} of {p.total:N0}…"));
+        var r = await Vault.AddAsync(photos, progress, albumId, verify: move);
+        string where = album != null ? $"“{album.Name}” in the Locked album" : "the Locked album";
+        if (move)
+        {
+            // only originals whose encrypted copy checked out are deleted
+            var inLibrary = r.secured.Where(p => Lib.Get(p.Id) == p).ToList();
+            var (deleted, failed) = Lib.DeleteForGood(inLibrary);
+            foreach (var p in r.secured.Except(inLibrary))
+                try { File.Delete(p.Path); deleted++; } catch { failed.Add(p); }
+            string m = $"Moved {r.added:N0} item{(r.added == 1 ? "" : "s")} into {where}";
+            if (r.skipped > 0) m += $". {r.skipped:N0} {(r.skipped == 1 ? "was" : "were")} already there, so {(r.skipped == 1 ? "its original was" : "their originals were")} left alone";
+            if (failed.Count > 0) m += $". {failed.Count:N0} original{(failed.Count == 1 ? "" : "s")} couldn't be deleted (in use?)";
+            if (r.errors.Count > 0) m += $". {r.errors.Count:N0} couldn't be moved and {(r.errors.Count == 1 ? "is" : "are")} untouched: {r.errors[0]}";
+            ShowToast(m + ".");
+            return (r.added, r.skipped, r.errors);
+        }
         var originals = photos.Where(p => !p.IsLocked && Lib.Get(p.Id) != null).ToList();
-        string msg = r.added == 1 ? "Locked 1 item" : $"Locked {r.added:N0} items";
+        string msg = (r.added == 1 ? "Copied 1 item" : $"Copied {r.added:N0} items") + $" into {where}";
         if (r.skipped > 0) msg += $" ({r.skipped:N0} already there)";
         if (r.errors.Count > 0) msg += $". {r.errors.Count:N0} couldn't be locked: {r.errors[0]}";
         if (r.added > 0 && originals.Count > 0)
@@ -207,7 +239,7 @@ public partial class MainWindow
         };
         if (dlg.ShowDialog(this) != true) return;
         var photos = dlg.FileNames.Where(File.Exists).Select(f => Lib.GetByPath(f) ?? MetadataReader.Read(f)).ToList();
-        AddToLocked(photos);
+        AddToLocked(photos, false, _lockedAlbumId);
     }
 
     private void LockedNav_Drop(object sender, DragEventArgs e)
@@ -255,5 +287,143 @@ public partial class MainWindow
         ClearSelection();
         SelectionChanged();
         ShowToast(photos.Count == 1 ? "Deleted 1 item from the Locked album" : $"Deleted {photos.Count:N0} items from the Locked album");
+    }
+
+    // ================================================================== albums inside the Locked album
+
+    /// <summary>The tabs above the Locked album: All, each album, and New album.</summary>
+    private void BuildLockedAlbumBar()
+    {
+        LockedAlbumBar.Children.Clear();
+        RadioButton Tab(string text, string id, int count)
+        {
+            var rb = new RadioButton
+            {
+                Style = (Style)FindResource("ChoicePill"),
+                GroupName = "lockedAlbums",
+                Content = count >= 0 ? $"{text}  ·  {count:N0}" : text,
+                Margin = new Thickness(0, 0, 8, 8),
+                IsChecked = _lockedAlbumId == id,
+                Tag = id,
+            };
+            rb.Checked += (_, _) =>
+            {
+                if (_lockedAlbumId == id) return;
+                _lockedAlbumId = id;
+                ClearSelection();
+                RebuildView(false);
+            };
+            return rb;
+        }
+        LockedAlbumBar.Children.Add(Tab("All", null, Vault.Count));
+        foreach (var a in Vault.Albums.OrderBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase))
+        {
+            var tab = Tab(a.Name, a.Id, Vault.PhotosIn(a).Count());
+            var album = a;
+            tab.MouseRightButtonUp += (s, e) => { ShowLockedAlbumOptions(album, (FrameworkElement)s); e.Handled = true; };
+            tab.ToolTip = "Right-click to rename or delete";
+            LockedAlbumBar.Children.Add(tab);
+        }
+        var add = new Button { Style = (Style)FindResource("ToolButton"), Height = 34, Margin = new Thickness(0, 0, 8, 8), ToolTip = "A new album inside the Locked album" };
+        var sp = new StackPanel { Orientation = Orientation.Horizontal };
+        sp.Children.Add(new TextBlock { Text = "\uE710", FontFamily = (FontFamily)FindResource("IconFont"), FontSize = 12, Margin = new Thickness(0, 1, 8, 0), VerticalAlignment = VerticalAlignment.Center });
+        sp.Children.Add(new TextBlock { Text = "New album", VerticalAlignment = VerticalAlignment.Center });
+        add.Content = sp;
+        add.Click += (_, _) => NewLockedAlbum(null, _selected.Count > 0 ? SelectedPhotos : null);
+        LockedAlbumBar.Children.Add(add);
+        if (Vault.GetAlbum(_lockedAlbumId) is VaultAlbum current)
+        {
+            var more = new Button { Style = (Style)FindResource("ToolButton"), Height = 34, Margin = new Thickness(0, 0, 8, 8), Content = "Rename or delete…" };
+            more.Click += (s, _) => ShowLockedAlbumOptions(current, (FrameworkElement)s);
+            LockedAlbumBar.Children.Add(more);
+        }
+        LockedAlbumBar.Visibility = Visibility.Visible;
+    }
+
+    /// <summary>Makes an album inside the Locked album (asks for a name unless one is given) and opens it.</summary>
+    public VaultAlbum NewLockedAlbum(string name, List<Photo> photos = null)
+    {
+        if (!Vault.IsUnlocked) return null;
+        if (name == null)
+        {
+            name = InputDialog.Ask(this, "New locked album", "Name", "Only visible while the Locked album is unlocked; its name is encrypted too.", "");
+            if (name == null) return null;
+        }
+        var a = Vault.CreateAlbum(name);
+        if (photos?.Count > 0 && photos.All(p => p.IsLocked)) Vault.AddToAlbum(a, photos);
+        _lockedAlbumId = a.Id;
+        if (_view == LibraryView.Locked) RebuildView(false);
+        return a;
+    }
+
+    private void ShowLockedAlbumOptions(VaultAlbum a, FrameworkElement target)
+    {
+        var m = NewMenu(target);
+        Item(m, "\uE8AC", "Rename…", () =>
+        {
+            var name = InputDialog.Ask(this, "Rename album", "Name", null, a.Name);
+            if (name != null) { Vault.RenameAlbum(a, name); RebuildView(true); }
+        });
+        Item(m, "\uE74D", "Delete album", () =>
+        {
+            if (!Confirm($"Delete the album “{a.Name}”?\n\nIts photos and videos stay in the Locked album (under All).", "Delete album")) return;
+            if (_lockedAlbumId == a.Id) _lockedAlbumId = null;
+            Vault.DeleteAlbum(a);
+        });
+        m.IsOpen = true;
+    }
+
+    /// <summary>Add locked items to one of the Locked album's albums.</summary>
+    private void ShowLockedAlbumMenu(FrameworkElement target, List<Photo> photos)
+    {
+        var m = NewMenu(target);
+        m.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+        foreach (var a in Vault.Albums.OrderBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase))
+        {
+            var album = a;
+            Item(m, "\uE8B9", a.Name, () =>
+            {
+                int n = Vault.AddToAlbum(album, photos);
+                ShowToast(n == 0 ? $"Already in “{album.Name}”" : $"Added {n:N0} to “{album.Name}”");
+            });
+        }
+        if (Vault.Albums.Count > 0) m.Items.Add(new Separator());
+        Item(m, "\uE710", "New album…", () => NewLockedAlbum(null, photos));
+        m.IsOpen = true;
+    }
+
+    /// <summary>The Lock menu: copy or move, into the Locked album or one of its albums.</summary>
+    private void ShowLockMenu(FrameworkElement target, List<Photo> photos)
+    {
+        var m = NewMenu(target);
+        m.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+        FillLockMenu(m, photos);
+        m.IsOpen = true;
+    }
+
+    /// <summary>Copy/Move to Locked album items (with a submenu of its albums when it's unlocked and has some).</summary>
+    private void FillLockMenu(ItemsControl menu, List<Photo> photos)
+    {
+        void Add(string glyph, string text, bool move, string tip)
+        {
+            var albums = Vault.IsUnlocked ? Vault.Albums.OrderBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase).ToList() : new List<VaultAlbum>();
+            if (albums.Count == 0)
+            {
+                var mi = Item(menu, glyph, text, () => AddToLocked(photos, move));
+                mi.ToolTip = tip;
+                return;
+            }
+            var parent = new MenuItem { Header = text, Icon = Glyph(glyph), ToolTip = tip };
+            Item(parent, "\uE72E", "Locked album (All)", () => AddToLocked(photos, move));
+            parent.Items.Add(new Separator());
+            foreach (var a in albums)
+            {
+                var id = a.Id;
+                Item(parent, "\uE8B9", a.Name, () => AddToLocked(photos, move, id));
+            }
+            menu.Items.Add(parent);
+        }
+        Add("\uE8C8", "Copy to Locked album", false, "Encrypted copies go in the Locked album; the originals stay where they are");
+        Add("\uE72E", "Move to Locked album", true, "Encrypted, checked, then the originals are deleted from this PC");
     }
 }

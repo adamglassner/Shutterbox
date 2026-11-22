@@ -65,7 +65,7 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Border Tag="tile" Width="{Binding TileSize}" Height="{Binding TileSize}" Margin="0,0,4,0" CornerRadius="4"
+                        <Border x:Name="tile" Tag="tile" Width="{Binding TileSize}" Height="{Binding TileSize}" Margin="0,0,4,0" CornerRadius="4" MouseEnter="Tile_MouseEnter"
                                 Background="{DynamicResource TileBg}" Cursor="Hand" RenderOptions.BitmapScalingMode="HighQuality"
                                 MouseLeftButtonDown="Tile_MouseLeftButtonDown" MouseLeftButtonUp="Tile_MouseLeftButtonUp"
                                 MouseMove="Tile_MouseMove" MouseRightButtonUp="Tile_MouseRightButtonUp" ToolTipService.InitialShowDelay="900">
@@ -91,13 +91,22 @@
                                     </StackPanel>
                                 </Border>
                                 <Border CornerRadius="4" BorderThickness="3" BorderBrush="{DynamicResource Accent}" Visibility="{Binding SelectedVisibility}"/>
-                                <Border Width="22" Height="22" CornerRadius="11" Background="{DynamicResource Accent}" HorizontalAlignment="Left"
-                                        VerticalAlignment="Top" Margin="7" Visibility="{Binding SelectedVisibility}">
+                                <!-- hover/select-mode check circle: click it to add or remove without Ctrl -->
+                                <Border x:Name="check" Width="24" Height="24" CornerRadius="12" Background="#59000000" BorderBrush="White" BorderThickness="2"
+                                        HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6" Cursor="Hand" Visibility="{Binding CheckVisibility}"
+                                        MouseLeftButtonDown="TileCheck_MouseLeftButtonDown" ToolTip="Select (adds to what's selected)"/>
+                                <Border Width="24" Height="24" CornerRadius="12" Background="{DynamicResource Accent}" HorizontalAlignment="Left"
+                                        VerticalAlignment="Top" Margin="6" Visibility="{Binding SelectedVisibility}" IsHitTestVisible="False">
                                     <TextBlock Text="&#xE73E;" FontFamily="{StaticResource IconFont}" FontSize="12" Foreground="{DynamicResource AccentText}"
                                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
                             </Grid>
                         </Border>
+                        <DataTemplate.Triggers>
+                            <Trigger SourceName="tile" Property="IsMouseOver" Value="True">
+                                <Setter TargetName="check" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                        </DataTemplate.Triggers>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
@@ -250,6 +259,8 @@
                                     <RadioButton x:Name="ZoomDays" Style="{StaticResource Segment}" GroupName="zoom" Content="Days" IsChecked="True" Checked="Zoom_Checked"/>
                                 </StackPanel>
                             </Border>
+                            <ToggleButton x:Name="SelectModeToggle" Style="{StaticResource ToolToggle}" Content="&#xE762;" Click="SelectMode_Click"
+                                          ToolTip="Select several (click or drag across photos and videos to pick them)"/>
                             <Button x:Name="SlideshowBtn" Style="{StaticResource ToolButton}" Padding="0" Width="38" ToolTip="Slideshow (F5)" Click="Slideshow_Click">
                                 <TextBlock Text="&#xE768;" FontFamily="{StaticResource IconFont}" FontSize="14"/>
                             </Button>
@@ -300,6 +311,7 @@
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
+                        <StackPanel Grid.Row="0">
                         <Border x:Name="Banner" Visibility="Collapsed" Margin="24,14,24,0" Background="{DynamicResource CardBg}"
                                 BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1" CornerRadius="10" Padding="14,10">
                             <DockPanel>
@@ -309,6 +321,9 @@
                                 <TextBlock x:Name="BannerText" TextWrapping="Wrap" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondary}" Margin="0,0,12,0"/>
                             </DockPanel>
                         </Border>
+                        <!-- albums inside the Locked album -->
+                        <WrapPanel x:Name="LockedAlbumBar" Visibility="Collapsed" Margin="24,12,24,0"/>
+                        </StackPanel>
 
                         <ListBox x:Name="Timeline" Grid.Row="1" Style="{StaticResource TimelineList}" Padding="24,0,10,24"
                                  ItemContainerStyle="{StaticResource TimelineItem}"
@@ -316,6 +331,11 @@
                                  VirtualizingPanel.ScrollUnit="Pixel" VirtualizingPanel.CacheLengthUnit="Page" VirtualizingPanel.CacheLength="1,1"
                                  ScrollViewer.CanContentScroll="True" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                  SizeChanged="Timeline_SizeChanged" PreviewMouseLeftButtonDown="Timeline_PreviewMouseLeftButtonDown"/>
+
+                        <Canvas x:Name="MarqueeLayer" Grid.Row="1" IsHitTestVisible="False" ClipToBounds="True">
+                            <Border x:Name="Marquee" Visibility="Collapsed" BorderBrush="{DynamicResource Accent}" BorderThickness="1.5"
+                                    Background="{DynamicResource AccentSoft}" CornerRadius="3"/>
+                        </Canvas>
 
                         <ScrollViewer x:Name="AlbumsPage" Grid.Row="1" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" Focusable="False">
                             <ItemsControl x:Name="AlbumGrid" Margin="24,18,24,24" Focusable="False">

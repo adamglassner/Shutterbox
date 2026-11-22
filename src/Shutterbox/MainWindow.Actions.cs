@@ -199,6 +199,10 @@ public partial class MainWindow
             Item(m, "\uE7AD", "Rotate right", () => RotatePhotos(photos, 90), true, "R");
             Item(m, "\uE7AD", "Rotate left", () => RotatePhotos(photos, -90), true, "Shift+R");
             m.Items.Add(new Separator());
+            Item(m, "\uE8B9", "Add to album…", () => ShowLockedAlbumMenu(target, photos));
+            if (Vault.GetAlbum(_lockedAlbumId) is VaultAlbum la)
+                Item(m, "\uE738", $"Remove from “{la.Name}”", () => { Vault.RemoveFromAlbum(la, photos); ClearSelection(); SelectionChanged(); });
+            m.Items.Add(new Separator());
             Item(m, "\uE785", "Restore to a folder…", () => RestoreFromLocked(photos));
             Item(m, "\uE74D", "Delete from Locked album…", () => DeleteFromLocked(photos), true, "Delete");
             m.IsOpen = true;
@@ -237,7 +241,8 @@ public partial class MainWindow
             Item(m, "", "Set as desktop background", () => ShowToast(Shell.SetWallpaper(one.Path) ? "Desktop background changed" : "Couldn't set the desktop background"));
         }
         Item(m, "", "Slideshow", () => StartSlideshow(photos.Count > 1 ? photos : null), true, "F5");
-        Item(m, "\uE72E", "Lock (copy into the Locked album)", () => AddToLocked(photos));
+        m.Items.Add(new Separator());
+        FillLockMenu(m, photos);
         m.Items.Add(new Separator());
         Item(m, "", "Move to Trash", () => TrashPhotos(photos), true, "Delete");
         m.IsOpen = true;

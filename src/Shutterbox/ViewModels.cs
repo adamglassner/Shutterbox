@@ -28,10 +28,15 @@ public sealed class PhotoItem : Observable
     public bool IsSelected
     {
         get => _selected;
-        set { if (_selected != value) { _selected = value; OnChanged(); OnChanged(nameof(SelectedVisibility)); } }
+        set { if (_selected != value) { _selected = value; OnChanged(); OnChanged(nameof(SelectedVisibility)); OnChanged(nameof(CheckVisibility)); } }
     }
 
     public Visibility SelectedVisibility => _selected ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>Select mode shows every tile's check circle (otherwise it shows on hover).</summary>
+    public static bool SelectMode { get; set; }
+    public Visibility CheckVisibility => SelectMode && !_selected ? Visibility.Visible : Visibility.Collapsed;
+    public void SelectModeChanged() => OnChanged(nameof(CheckVisibility));
     public Visibility FavoriteVisibility => Photo.Favorite ? Visibility.Visible : Visibility.Collapsed;
     /// <summary>Shown when there's no thumbnail: a film icon for videos, a warning for pictures Windows can't read.</summary>
     public string FailedGlyph => Photo.IsVideo ? "\uE714" : "\uE783";

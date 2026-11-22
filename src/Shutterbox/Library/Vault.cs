@@ -27,6 +27,43 @@ public sealed class VaultItem
     public bool HasThumb { get; set; }
 }
 
+/// <summary>An album inside the Locked album. Its name and contents are in the encrypted index.</summary>
+public sealed class VaultAlbum
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    public string Name { get; set; } = "";
+    public List<string> ItemIds { get; set; } = new();
+    public DateTime Created { get; set; } = DateTime.Now;
+}
+
+/// <summary>What the encrypted index holds (version 1 was just the list of items).</summary>
+public sealed class VaultIndex
+{
+    public int Version { get; set; } = 2;
+    public List<VaultItem> Items { get; set; } = new();
+    public List<VaultAlbum> Albums { get; set; } = new();
+}
+
+/// <summary>Hashes what's written to it (to check an encrypted copy decrypts back exactly).</summary>
+internal sealed class HashSink : Stream
+{
+    private readonly IncrementalHash _hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+    private long _length;
+    public byte[] Finish() => _hash.GetHashAndReset();
+    public override void Write(byte[] buffer, int offset, int count) { _hash.AppendData(buffer, offset, count); _length += count; }
+    public override void Write(ReadOnlySpan<byte> buffer) { _hash.AppendData(buffer); _length += buffer.Length; }
+    public override bool CanRead => false;
+    public override bool CanSeek => false;
+    public override bool CanWrite => true;
+    public override long Length => _length;
+    public override long Position { get => _length; set => throw new NotSupportedException(); }
+    public override void Flush() { }
+    public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+    public override void SetLength(long value) => throw new NotSupportedException();
+    protected override void Dispose(bool disposing) { if (disposing) _hash.Dispose(); base.Dispose(disposing); }
+}
+
 public sealed class VaultInfo
 {
     public int Version { get; set; } = 1;
@@ -60,6 +97,7 @@ public static class Vault
 
     private static byte[] _key;
     private static List<VaultItem> _items = new();
+    private static List<VaultAlbum> _albums = new();
     private static List<Photo> _photos;
     private static int _busy;
 
@@ -231,6 +269,7 @@ public static class Vault
         Directory.CreateDirectory(ThumbsDir);
         _key = key;
         _items = new List<VaultItem>();
+        _albums = new List<VaultAlbum>();
         SaveIndex();
         SaveInfo(info);
         Raise();
@@ -260,10 +299,11 @@ public static class Vault
     {
         try
         {
-            var items = File.Exists(IndexFile)
-                ? JsonSerializer.Deserialize<List<VaultItem>>(DecryptBytes(File.ReadAllBytes(IndexFile), key)) ?? new()
-                : new List<VaultItem>();
+            var (items, albums) = File.Exists(IndexFile)
+                ? ParseIndex(DecryptBytes(File.ReadAllBytes(IndexFile), key))
+                : (new List<VaultItem>(), new List<VaultAlbum>());
             _items = items;
+            _albums = albums;
             _key = key;
             LastActivity = DateTime.Now;
             Raise();
@@ -284,6 +324,7 @@ public static class Vault
         CryptographicOperations.ZeroMemory(_key);
         _key = null;
         _items = new();
+        _albums = new();
         CleanTemp();
         Raise();
     }
@@ -332,8 +373,14 @@ public static class Vault
     /// Copies photos and videos into the Locked album, encrypted. The originals aren't touched.
     /// Items already in the album (same name and size) are skipped. Returns how many were added and what failed.
     /// </summary>
-    public static async Task<(int added, int skipped, List<string> errors)> AddAsync(IReadOnlyList<Photo> photos, IProgress<(int done, int total)> progress = null)
+    /// <param name="albumId">Also put them in this album inside the Locked album.</param>
+    /// <param name="verify">Check each encrypted copy decrypts back to exactly the original (for moving, before the original is deleted).</param>
+    /// <returns>Also the photos that are now safely in the Locked album (added, and checked when <paramref name="verify"/> is set).</returns>
+    public static async Task<(int added, int skipped, List<string> errors, List<Photo> secured)> AddAsync(IReadOnlyList<Photo> photos,
+        IProgress<(int done, int total)> progress = null, string albumId = null, bool verify = false)
     {
+        var secured = new List<Photo>();
+        var album = albumId == null ? null : _albums.FirstOrDefault(a => a.Id == albumId);
         if (_key == null) throw new InvalidOperationException("Unlock the Locked album first.");
         var key = _key.ToArray();
         Interlocked.Increment(ref _busy);
@@ -349,7 +396,13 @@ public static class Vault
             {
                 progress?.Report((done, photos.Count));
                 if (p.IsLocked || !File.Exists(p.Path)) { skipped++; done++; continue; }
-                if (!have.Add((p.FileName.ToLowerInvariant(), p.Size))) { skipped++; done++; continue; }
+                if (!have.Add((p.FileName.ToLowerInvariant(), p.Size)))
+                {
+                    // already locked: it can still go into the album
+                    var existing = _items.FirstOrDefault(i => i.Size == p.Size && string.Equals(i.Name, p.FileName, StringComparison.OrdinalIgnoreCase));
+                    if (album != null && existing != null && !album.ItemIds.Contains(existing.Id)) { album.ItemIds.Add(existing.Id); SaveIndex(key); }
+                    skipped++; done++; continue;
+                }
                 var item = new VaultItem
                 {
                     Name = p.FileName, Size = p.Size, Taken = p.Taken, TakenSource = p.TakenSource, Width = p.Width, Height = p.Height,
@@ -366,6 +419,8 @@ public static class Vault
                         EncryptStream(input, output, key);
                     });
                     File.Move(dest + ".tmp", dest, true);
+                    if (verify && !await Task.Run(() => SameContent(p.Path, dest, key)))
+                        throw new IOException("the encrypted copy didn't check out, so nothing was changed");
                     // a small encrypted thumbnail so the album opens quickly
                     var upright = p.Copy();
                     upright.Rotation = 0; // the album applies your rotation itself
@@ -376,8 +431,14 @@ public static class Vault
                         File.WriteAllBytes(IOPath.Combine(ThumbsDir, item.Id + ".sbox"), EncryptBytes(jpg, key));
                         item.HasThumb = true;
                     }
-                    if (_key != null) { _items.Add(item); SaveIndex(key); }
+                    if (_key != null)
+                    {
+                        _items.Add(item);
+                        album?.ItemIds.Add(item.Id);
+                        SaveIndex(key);
+                    }
                     added++;
+                    secured.Add(p);
                 }
                 catch (Exception ex)
                 {
@@ -395,8 +456,106 @@ public static class Vault
             Raise();
             if (_lockWhenDone && !IsBusy) { _lockWhenDone = false; Lock(); }
         }
-        return (added, skipped, errors);
+        return (added, skipped, errors, secured);
     }
+
+    /// <summary>True when the encrypted file decrypts to exactly the original (SHA-256 of both).</summary>
+    private static bool SameContent(string original, string encrypted, byte[] key)
+    {
+        byte[] a, b;
+        using (var fs = new FileStream(original, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 16))
+            a = SHA256.HashData(fs);
+        using (var input = File.OpenRead(encrypted))
+        using (var sink = new HashSink())
+        {
+            DecryptStream(input, sink, key);
+            b = sink.Finish();
+        }
+        return a.AsSpan().SequenceEqual(b);
+    }
+
+    // ================================================================== albums inside the Locked album
+
+    public static IReadOnlyList<VaultAlbum> Albums => _key == null ? Array.Empty<VaultAlbum>() : _albums;
+
+    public static VaultAlbum GetAlbum(string id) => id == null || _key == null ? null : _albums.FirstOrDefault(a => a.Id == id);
+
+    /// <summary>Reads the decrypted index; accepts version 1 (a plain list of items) too.</summary>
+    internal static (List<VaultItem> items, List<VaultAlbum> albums) ParseIndex(byte[] json)
+    {
+        var text = System.Text.Encoding.UTF8.GetString(json).TrimStart();
+        if (text.StartsWith("["))
+            return (JsonSerializer.Deserialize<List<VaultItem>>(text) ?? new(), new List<VaultAlbum>());
+        var index = JsonSerializer.Deserialize<VaultIndex>(text) ?? new VaultIndex();
+        index.Items ??= new();
+        index.Albums ??= new();
+        var ids = new HashSet<string>(index.Items.Select(i => i.Id));
+        foreach (var a in index.Albums) { a.ItemIds ??= new(); a.ItemIds.RemoveAll(id => !ids.Contains(id)); }
+        return (index.Items, index.Albums);
+    }
+
+    private static string UniqueAlbumName(string name, VaultAlbum except = null)
+    {
+        name = string.IsNullOrWhiteSpace(name) ? "New album" : name.Trim();
+        var n = name;
+        for (int i = 2; _albums.Any(a => a != except && string.Equals(a.Name, n, StringComparison.OrdinalIgnoreCase)); i++) n = $"{name} ({i})";
+        return n;
+    }
+
+    public static VaultAlbum CreateAlbum(string name)
+    {
+        if (_key == null) throw new InvalidOperationException("Unlock first.");
+        var a = new VaultAlbum { Name = UniqueAlbumName(name) };
+        _albums.Add(a);
+        SaveIndex();
+        Raise();
+        return a;
+    }
+
+    public static void RenameAlbum(VaultAlbum a, string name)
+    {
+        if (_key == null) return;
+        a.Name = UniqueAlbumName(name, a);
+        SaveIndex();
+        Raise();
+    }
+
+    /// <summary>Deletes the album only; its items stay in the Locked album.</summary>
+    public static void DeleteAlbum(VaultAlbum a)
+    {
+        if (_key == null) return;
+        _albums.Remove(a);
+        SaveIndex();
+        Raise();
+    }
+
+    public static int AddToAlbum(VaultAlbum a, IEnumerable<Photo> photos)
+    {
+        if (_key == null) return 0;
+        int n = 0;
+        foreach (var p in photos.Where(x => x.IsLocked))
+            if (!a.ItemIds.Contains(p.VaultId)) { a.ItemIds.Add(p.VaultId); n++; }
+        SaveIndex();
+        Raise();
+        return n;
+    }
+
+    public static void RemoveFromAlbum(VaultAlbum a, IEnumerable<Photo> photos)
+    {
+        if (_key == null) return;
+        var ids = new HashSet<string>(photos.Where(x => x.IsLocked).Select(p => p.VaultId));
+        a.ItemIds.RemoveAll(ids.Contains);
+        SaveIndex();
+        Raise();
+    }
+
+    public static IEnumerable<Photo> PhotosIn(VaultAlbum a)
+    {
+        var ids = new HashSet<string>(a.ItemIds);
+        return Photos.Where(p => ids.Contains(p.VaultId));
+    }
+
+    public static IEnumerable<VaultAlbum> AlbumsOf(Photo p) => _albums.Where(a => p.IsLocked && a.ItemIds.Contains(p.VaultId));
 
     private static byte[] EncodeJpeg(BitmapSource img)
     {
@@ -526,6 +685,7 @@ public static class Vault
     private static void RemoveItem(string id, byte[] key)
     {
         _items.RemoveAll(i => i.Id == id);
+        foreach (var a in _albums) a.ItemIds.Remove(id);
         SaveIndex(key);
         try { File.Delete(ItemPath(id)); } catch { }
         try { File.Delete(IOPath.Combine(ThumbsDir, id + ".sbox")); } catch { }
@@ -535,7 +695,7 @@ public static class Vault
     {
         key ??= _key;
         if (key == null) return;
-        var bytes = EncryptBytes(JsonSerializer.SerializeToUtf8Bytes(_items), key);
+        var bytes = EncryptBytes(JsonSerializer.SerializeToUtf8Bytes(new VaultIndex { Items = _items, Albums = _albums }), key);
         File.WriteAllBytes(IndexFile + ".tmp", bytes);
         File.Move(IndexFile + ".tmp", IndexFile, true);
     }

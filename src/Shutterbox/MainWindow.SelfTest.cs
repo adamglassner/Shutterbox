@@ -623,6 +623,107 @@ public partial class MainWindow
             await Idle();
         });
 
+        await Test("Selecting lots of photos is easy", async () =>
+        {
+            ShowView(LibraryView.Photos);
+            await Idle();
+            // Select mode: clicks add, dragging across paints
+            SetSelectMode(true);
+            await Idle();
+            Assert(SelectionBar.Visibility == Visibility.Visible, "select mode shows the selection bar");
+            Assert(_flat[0].CheckVisibility == Visibility.Visible, "check circles show in select mode");
+            BeginPaint(_flat[0], true);
+            PaintOver(_flat[1]);
+            PaintOver(_flat[2]);
+            EndPaint();
+            AreEqual(3, _selected.Count, "dragging across three tiles");
+            BeginPaint(_flat[1], false);
+            EndPaint();
+            AreEqual(2, _selected.Count, "a click in select mode removes");
+            await Idle();
+            Shot("21-select-mode");
+            SelectAll();
+            AreEqual(_flat.Count, _selected.Count, "Select all");
+            ClearSelection();
+            SetSelectMode(false);
+            SelectionChanged();
+            Assert(_flat[0].CheckVisibility == Visibility.Collapsed, "check circles hide again");
+
+            // A box dragged from empty space
+            await Idle();
+            var panel = TimelinePanel();
+            var rows = panel.Children.OfType<ListBoxItem>().Where(li => li.DataContext is PhotoRow && li.IsVisible)
+                .Select(li => (row: (PhotoRow)li.DataContext, top: li.TranslatePoint(new Point(0, 0), Timeline).Y, h: li.ActualHeight))
+                .Where(r => r.top >= 0).OrderBy(r => r.top).ToList();
+            Assert(rows.Count >= 2, "two rows on screen");
+            SimulateMarquee(new Point(2, rows[0].top + 6), new Point(Timeline.ActualWidth - 30, rows[0].top + rows[0].h - 12), false);
+            AreEqual(rows[0].row.Items.Count, _selected.Count, "the box selects the row it covers");
+            SimulateMarquee(new Point(2, rows[1].top + 6), new Point(60, rows[1].top + 20), true);
+            AreEqual(rows[0].row.Items.Count + 1, _selected.Count, "Ctrl+box adds to the selection");
+            // keyboard: Space toggles the photo you're on
+            _focusId = rows[1].row.Items[0].Photo.Id;
+            ToggleFocused();
+            AreEqual(rows[0].row.Items.Count, _selected.Count, "Space removes it again");
+            ClearSelection();
+            SelectionChanged();
+        });
+
+        await Test("Locked album: albums inside it", async () =>
+        {
+            Assert(Vault.IsUnlocked, "unlocked");
+            var (v1Items, v1Albums) = Vault.ParseIndex(System.Text.Encoding.UTF8.GetBytes("[{\"Id\":\"abc\",\"Name\":\"x.jpg\"}]"));
+            Assert(v1Items.Count == 1 && v1Albums.Count == 0, "older Locked albums (no albums yet) still open");
+            ShowView(LibraryView.Locked);
+            var a = NewLockedAlbum("Private");
+            AreEqual("Private", a.Name, "made");
+            AreEqual("Private (2)", Vault.CreateAlbum("private").Name, "names stay unique");
+            Vault.DeleteAlbum(Vault.Albums.First(x => x.Name == "Private (2)"));
+            AreEqual(1, Vault.AddToAlbum(a, Vault.Photos), "added");
+            await Idle();
+            AreEqual(1, _flat.Count, "the album's view");
+            Assert(LockedAlbumBar.Visibility == Visibility.Visible && LockedAlbumBar.Children.Count >= 3, "album tabs");
+            var index = System.Text.Encoding.Latin1.GetString(File.ReadAllBytes(IOPath.Combine(Vault.Folder, "index.sbox")));
+            Assert(!index.Contains("Private"), "album names are encrypted");
+            Vault.Lock();
+            Assert(Vault.Albums.Count == 0, "albums hidden while locked");
+            Assert(Vault.Unlock("hunter22"), "unlock");
+            var again = Vault.Albums.FirstOrDefault(x => x.Name == "Private");
+            Assert(again != null && Vault.PhotosIn(again).Count() == 1, "albums are kept");
+            Vault.RenameAlbum(again, "Just us");
+            AreEqual("Just us", Vault.Albums.Single().Name, "renamed");
+            _lockedAlbumId = again.Id;
+            RebuildView(false);
+            await Idle();
+        });
+
+        await Test("Copy to Locked and Move to Locked", async () =>
+        {
+            var album = Vault.Albums.Single();
+            int before = Vault.Count;
+            var copyOne = Lib.Photos.First(p => p.FolderName == "Big Sur trip" && !p.IsTrashed);
+            var r1 = await LockPhotosAsync(new List<Photo> { copyOne }, move: false, albumId: album.Id);
+            AreEqual(1, r1.added, "copied");
+            Assert(File.Exists(copyOne.Path) && Lib.Get(copyOne.Id) != null, "Copy keeps the original");
+            var two = Lib.Photos.Where(p => p.FolderName == "Summer").OrderBy(p => p.FileName).Take(2).ToList();
+            var bytes = two.Select(p => File.ReadAllBytes(p.Path)).ToList();
+            var r2 = await LockPhotosAsync(two, move: true, albumId: album.Id);
+            AreEqual(2, r2.added, "moved");
+            Assert(two.All(p => !File.Exists(p.Path)), "Move deletes the originals");
+            Assert(two.All(p => Lib.Get(p.Id) == null), "…and takes them out of the library");
+            expected -= 2;
+            AreEqual(expected, Lib.Count, "library count after moving");
+            AreEqual(before + 3, Vault.Count, "all three are in the Locked album");
+            AreEqual(4, Vault.PhotosIn(album).Count(), "and in its album");
+            var moved = Vault.Photos.First(p => p.FileName == two[0].FileName);
+            Assert(Vault.ReadBytes(moved.VaultId).AsSpan().SequenceEqual(bytes[0]), "the moved photo is intact");
+            await Idle();
+            await WaitForThumbs(4);
+            Shot("22-locked-albums");
+            _lockedAlbumId = null;
+            ShowView(LibraryView.Photos);
+            await Idle();
+        });
+
         await Test("Import from a camera card", async () =>
         {
             var dlg = new ImportDialog(this, new[] { card }) { Owner = this };

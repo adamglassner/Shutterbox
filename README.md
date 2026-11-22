@@ -47,7 +47,8 @@ Select photos or videos and choose **Lock** (or drag them onto **Locked** in the
 
 - **Unlock with** a PIN (4–12 digits) or a password, and optionally **Windows Hello** (fingerprint, face or Windows PIN) on each PC. A **recovery key** shown once at setup gets you back in if you forget the PIN or password. Nobody, including Bytehawk Studio, can open the album without one of these.
 - **Encryption:** AES-256-GCM with a random key, in 1 MB pieces that are each authenticated (so changes or a cut-short file are detected). The key is stored only wrapped by your PIN/password (PBKDF2-SHA256, 600,000 rounds) and by the recovery key; Windows Hello keeps a copy protected for your Windows account (DPAPI). File names, dates and thumbnails are in the encrypted index, and the files on disk have random names.
-- **Originals:** locking copies. Shutterbox then offers to move the originals to the Recycle Bin; empty it afterwards so nothing is left behind.
+- **Copy or Move:** the Lock menu has **Copy to Locked album** (your originals stay) and **Move to Locked album** (each item is encrypted and checked, then the original is deleted for good, not to the Recycle Bin). Both can go straight into one of the Locked album's albums.
+- **Albums inside it:** tabs at the top of the Locked album (All, your albums, New album). Names are encrypted too and only show while it's unlocked.
 - **Auto-lock** after 1, 5, 15 or 30 minutes without use (or only when you lock it), and always when Shutterbox closes.
 - **Restore** decrypts items back to a folder you choose. **Delete** removes them for good (encrypted items don't go to the Recycle Bin).
 - **Videos** play inside Shutterbox. A player needs a file, so while one plays it's decrypted to a hidden temporary file in `%LOCALAPPDATA%\Shutterbox\LockedPlayback`, deleted when you move on, lock or close Shutterbox (and at the next start if Windows shut down first).
@@ -58,6 +59,13 @@ Select photos or videos and choose **Lock** (or drag them onto **Locked** in the
 
 JPEG, PNG, GIF, BMP, TIFF, WebP, JPEG XR and ICO work out of the box. HEIC/HEIF (iPhone), AVIF and camera RAW files (DNG, CR2, CR3, NEF, ARW…) use the codecs Windows has, so install **HEIF Image Extensions**, **AV1 Video Extension** or **Raw Image Extension** from the Microsoft Store if they don't show. Videos use the codecs Windows has: MP4 (H.264), MOV, WMV and AVI play out of the box; HEVC (H.265, many phones), AV1 and VP9/WebM need **HEVC Video Extensions**, **AV1 Video Extension** or **VP9 Video Extensions** from the Microsoft Store.
 
+### Selecting lots at once
+
+- Point at a tile and click its **check circle** to add or remove it (no Ctrl needed).
+- Turn on **Select mode** (the check button at the top): every click adds or removes, and you can drag across tiles to select them all.
+- **Drag a box** from empty space to select everything it touches (hold Ctrl to add to the selection).
+- **Select** on a day's heading, **Select all** in the selection bar, Ctrl+A, Shift+click for a range.
+
 ### Keyboard
 
 | Key | Does |
@@ -66,6 +74,7 @@ JPEG, PNG, GIF, BMP, TIFF, WebP, JPEG XR and ICO work out of the box. HEIC/HEIF 
 | Arrow keys, Home, End, Page Up/Down | Move (Shift extends the selection) |
 | Enter or double-click | Open |
 | Ctrl+A / Esc | Select all / clear |
+| Space | Add or remove the photo you're on |
 | F | Favorite |
 | R / Shift+R | Rotate right / left |
 | Delete | Move to Trash |

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0 (2026-11-22)
+
+- **Albums inside the Locked album.** Tabs at the top of the Locked album: All, your albums, and New album. Add locked items to albums, remove them, rename or delete an album (its items stay in the Locked album). Album names are encrypted with everything else and only show while it's unlocked.
+- **Copy to Locked album or Move to Locked album.** Both are in the Lock menu (selection bar) and the right-click menu, straight into any of its albums. **Copy** leaves your originals where they are. **Move** encrypts each item, checks the encrypted copy decrypts back exactly, and only then deletes the original from your PC (not to the Recycle Bin, so no unlocked copy is left behind).
+- **Selecting lots of photos and videos is much easier:**
+  - a **check circle** on every tile (it shows when you point at one): click it to add or remove that item, no Ctrl needed;
+  - **Select mode** (the check button at the top): every click adds or removes, and dragging across tiles selects them all;
+  - **drag a box** from any empty space to select everything it touches; it scrolls when you reach the top or bottom, and Ctrl adds to what's already selected;
+  - **Select all** in the selection bar, **Select** on each day, and **Space** to add or remove the photo you're on with the keyboard (Shift+arrows still extend).
+
 ## 0.2.0 (2026-11-22)
 
 - **Videos.** Shutterbox now finds the videos in your folders (MP4, MOV, M4V, WMV, AVI, MKV, WebM, 3GP, MTS and more) and keeps them in their own **Videos** section, so the Photos timeline stays photos only. Video tiles show their length, and the viewer plays them with play/pause, a seek bar and mute. Importing from a camera or phone brings its videos along too. Slideshows skip videos.
