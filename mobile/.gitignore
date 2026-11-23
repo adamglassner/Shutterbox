@@ -1,0 +1,16 @@
+# CI makes the platform projects with `flutter create`
+android/
+ios/
+linux/
+macos/
+windows/
+web/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+pubspec.lock
+.metadata
+*.iml
+test/screenshots/
+test/failures/

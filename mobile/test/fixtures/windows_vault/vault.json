@@ -1,0 +1,10 @@
+{
+  "Version": 1,
+  "Kind": "PIN",
+  "Salt": "Y0ea1poJCyWCd+yPum+ZQQ==",
+  "Iterations": 1000,
+  "WrappedKey": "Z2uLuEznJn3VIN7KXLExWEBPvs4zVNqtiIEZ+BwH+ugZHAdjC55fMSFrIMFsKD9o4XhWcwx5dJhE1BGS",
+  "RecoverySalt": "RTvcDCVRDwy+hBFIGJatMw==",
+  "RecoveryWrappedKey": "BICpPS6bCUuJ4I4B+D0MmNT5ROBuFm9yIGufsBPBGgbYl2rWiE3RVs8BWSpuvKTouWZzSjpfKfq8sTsw",
+  "AutoLockMinutes": 5
+}

@@ -9,7 +9,9 @@ on:
   push:
     branches: ['**']
     tags: ['v*.*.*']
+    paths-ignore: ['mobile/**', '.github/workflows/android.yml']
   pull_request:
+    paths-ignore: ['mobile/**', '.github/workflows/android.yml']
   workflow_dispatch:
 
 permissions:

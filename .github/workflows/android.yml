@@ -1,0 +1,201 @@
+name: Android
+
+# Shutterbox for Android (Flutter, in mobile/).
+# - Every push that touches mobile/ and manual runs: analyze, test (including the Locked album's compatibility with
+#   the Windows app), render screenshots, build and sign the APK, and start it on an emulator.
+# - Push to main with a pubspec version that has no android-v<version> release yet: publish that release with the APK.
+#   It's never marked "latest", so the Bytehawk Studio Launcher keeps installing the Windows app.
+on:
+  push:
+    branches: [main, android]
+    paths: ['mobile/**', '.github/workflows/android.yml']
+  pull_request:
+    paths: ['mobile/**', '.github/workflows/android.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Version
+        id: ver
+        run: |
+          v=$(grep -m1 '^version:' pubspec.yaml | sed 's/version: *//; s/+.*//')
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          release=false
+          if [ "$GITHUB_REF" = "refs/heads/main" ] && [ "$GITHUB_EVENT_NAME" != "pull_request" ] && ! git rev-parse -q --verify "refs/tags/android-v$v" >/dev/null; then release=true; fi
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+          grep -q "^## $v" CHANGELOG.md || { echo "::error::mobile/CHANGELOG.md has no '## $v' section"; exit 1; }
+          echo "Shutterbox for Android $v (release: $release)"
+          flutter --version
+
+      - name: Create the Android project files
+        run: |
+          flutter create --platforms=android --org com.bytehawkstudio --project-name shutterbox --no-pub . > /dev/null
+          rm -f test/widget_test.dart
+          cp -r android-res/. android/app/src/main/res/
+          python3 tool/patch_native.py android
+          grep -nE 'android:label|uses-permission|requestLegacy' android/app/src/main/AndroidManifest.xml
+          grep -nE 'minSdk|Desugaring|desugar' android/app/build.gradle.kts
+
+      - run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Tests
+        env:
+          SB_EXPORT: ${{ runner.temp }}/phone-locked-album
+        run: flutter test test/vault_test.dart test/logic_test.dart
+
+      - name: The Windows format opens what the phone made (reference implementation)
+        run: |
+          python3 -c "import cryptography" 2>/dev/null || python3 -m pip install --quiet cryptography
+          python3 tool/vault_ref.py check "$RUNNER_TEMP/phone-locked-album"
+
+      - name: Screenshots
+        run: |
+          flutter test --update-goldens test/screenshots_test.dart
+          ls -la test/screenshots
+
+      - name: Publish screenshots to the "screenshots-android" branch
+        if: github.event_name != 'pull_request'
+        working-directory: mobile/test/screenshots
+        run: |
+          git init -q -b screenshots-android
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Android screenshots of ${{ github.sha }}"
+          git push -q --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:screenshots-android
+
+      - name: Build APK
+        run: |
+          flutter build apk --release
+          ls -la build/app/outputs/flutter-apk/
+
+      # Every release must be signed with the same key, or Android won't install it over the last one (in-app updates).
+      # The key comes from the ANDROID_KEYSTORE_B64 / ANDROID_KEYSTORE_PASSWORD secrets when they're set, or else from
+      # the private draft release "android-signing-key" (drafts are only visible to people who can push to this repo).
+      # The first run makes that key and saves it there.
+      - name: Sign with the Shutterbox key
+        id: sign
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          apk=build/app/outputs/flutter-apk/app-release.apk
+          out=build/Shutterbox-Android-${{ steps.ver.outputs.version }}.apk
+          tools=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          keys="$RUNNER_TEMP/keys"
+          mkdir -p "$keys"
+          ks="$keys/shutterbox.jks"
+          repo="${{ github.repository }}"
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$ks"
+          else
+            rel=$(gh api "repos/$repo/releases?per_page=100" --jq '[.[] | select(.draft and .name == "android-signing-key")][0].id // empty')
+            if [ -n "$rel" ]; then
+              for a in $(gh api "repos/$repo/releases/$rel/assets" --jq '.[] | "\(.id):\(.name)"'); do
+                gh api -H "Accept: application/octet-stream" "repos/$repo/releases/assets/${a%%:*}" > "$keys/${a#*:}"
+              done
+              base64 -d "$keys/shutterbox.jks.b64" > "$ks"
+              KEYSTORE_PASSWORD=$(cat "$keys/password.txt")
+              echo "Using the key in the private draft release"
+            elif [ "${{ github.event_name }}" != "pull_request" ]; then
+              echo "Making Shutterbox's Android signing key"
+              KEYSTORE_PASSWORD=$(openssl rand -base64 24 | tr -d '/+=')
+              keytool -genkeypair -keystore "$ks" -storetype PKCS12 -alias shutterbox -keyalg RSA -keysize 4096 -validity 12000 \
+                -storepass "$KEYSTORE_PASSWORD" -keypass "$KEYSTORE_PASSWORD" -dname "CN=Bytehawk Studio, O=Bytehawk Studio, C=US"
+              base64 -w0 "$ks" > "$keys/shutterbox.jks.b64"
+              printf '%s' "$KEYSTORE_PASSWORD" > "$keys/password.txt"
+              gh release create android-signing-key --repo "$repo" --draft --prerelease --title android-signing-key \
+                --notes "Private: the key that signs Shutterbox for Android, so each update installs over the last one. CI reads it from here. Draft releases are only visible to people who can push to this repo. Don't publish this release or share its files." \
+                "$keys/shutterbox.jks.b64" "$keys/password.txt"
+            fi
+          fi
+          if [ -s "$ks" ] && [ -n "$KEYSTORE_PASSWORD" ]; then
+            export KEYSTORE_PASSWORD
+            "$tools/apksigner" sign --ks "$ks" --ks-pass env:KEYSTORE_PASSWORD --ks-key-alias shutterbox --out "$out" "$apk"
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::No signing key; the APK keeps the build machine's debug signature and won't be released"
+            cp "$apk" "$out"
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+          fi
+          rm -rf "$keys"
+          "$tools/apksigner" verify --print-certs "$out" | head -3
+          ls -la "$out"
+
+      # The release build must actually start on Android (a shrunk-away class or a missing plugin only shows up here)
+      - name: Enable KVM for the emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+
+      - name: Launch the APK on an emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          working-directory: mobile
+          script: |
+            adb wait-for-device
+            adb shell 'while [ "$(getprop sys.boot_completed)" != "1" ]; do sleep 2; done'
+            adb install -r build/Shutterbox-Android-${{ steps.ver.outputs.version }}.apk
+            adb shell pm grant com.bytehawkstudio.shutterbox android.permission.READ_MEDIA_IMAGES || true
+            adb shell pm grant com.bytehawkstudio.shutterbox android.permission.READ_MEDIA_VIDEO || true
+            adb logcat -c
+            adb shell am start -W -n com.bytehawkstudio.shutterbox/.MainActivity
+            sleep 30
+            adb exec-out screencap -p > "$RUNNER_TEMP/emulator.png" || true
+            adb logcat -d -b crash > "$RUNNER_TEMP/crash.txt" || true
+            cat "$RUNNER_TEMP/crash.txt"
+            if grep -q "com.bytehawkstudio.shutterbox" "$RUNNER_TEMP/crash.txt"; then echo "::error::Shutterbox crashed on launch" && exit 1; fi
+            if adb shell pidof com.bytehawkstudio.shutterbox; then echo "Shutterbox started and is running"; else adb logcat -d | grep -iE "shutterbox|flutter|ActivityManager" | tail -80; echo "::error::Shutterbox isn't running 30 seconds after launch" && exit 1; fi
+            adb logcat -d | grep -iE "flutter" | tail -40 || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Shutterbox-Android-${{ steps.ver.outputs.version }}
+          path: |
+            mobile/build/Shutterbox-Android-*.apk
+            ${{ runner.temp }}/emulator.png
+
+      - name: Publish the Android release
+        if: steps.ver.outputs.release == 'true' && steps.sign.outputs.signed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          v=${{ steps.ver.outputs.version }}
+          notes=$(awk -v v="## $v" '$0 ~ "^"v {f=1; next} /^## / && f {exit} f' CHANGELOG.md)
+          gh release create "android-v$v" "build/Shutterbox-Android-$v.apk" \
+            --target "$GITHUB_SHA" --latest=false \
+            --title "Shutterbox for Android $v" \
+            --notes "Shutterbox for Android $v. Download **Shutterbox-Android-$v.apk** on your phone and open it to install (allow installs from your browser or Files app when Android asks). Later updates install from Settings → Updates.
+
+          $notes"
