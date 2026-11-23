@@ -173,11 +173,23 @@ jobs:
             adb shell am start -W -n com.bytehawkstudio.shutterbox/.MainActivity
             sleep 30
             adb exec-out screencap -p > "$RUNNER_TEMP/emulator.png" || true
+            adb logcat -d | grep -E " E (flutter|MethodChannel|AndroidRuntime)" | head -60 || true
             adb logcat -d -b crash > "$RUNNER_TEMP/crash.txt" || true
             cat "$RUNNER_TEMP/crash.txt"
             if grep -q "com.bytehawkstudio.shutterbox" "$RUNNER_TEMP/crash.txt"; then echo "::error::Shutterbox crashed on launch" && exit 1; fi
             if adb shell pidof com.bytehawkstudio.shutterbox; then echo "Shutterbox started and is running"; else adb logcat -d | grep -iE "shutterbox|flutter|ActivityManager" | tail -80; echo "::error::Shutterbox isn't running 30 seconds after launch" && exit 1; fi
             adb logcat -d | grep -iE "flutter" | tail -40 || true
+
+      - name: Add the emulator's screen to the "screenshots-android" branch
+        if: github.event_name != 'pull_request'
+        working-directory: ${{ runner.temp }}
+        run: |
+          git clone -q --depth 1 -b screenshots-android "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" shots
+          cp emulator.png shots/00-emulator.png
+          cd shots
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A && git commit -q -m "Emulator screen of ${{ github.sha }}" && git push -q
 
       - uses: actions/upload-artifact@v4
         with:

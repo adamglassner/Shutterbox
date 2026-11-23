@@ -53,6 +53,14 @@ def android():
         s += '\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n}\n'
     write(g, s)
 
+    # Keep plugin classes whole: readable stack traces, and nothing a plugin finds by reflection goes missing
+    write("android/app/proguard-rules.pro", """-keep class com.fluttercandies.photo_manager.** { *; }
+-keep class com.baseflow.permissionhandler.** { *; }
+-keep class com.it_nomads.fluttersecurestorage.** { *; }
+-keep class com.crazecoder.openfile.** { *; }
+-keepattributes SourceFile,LineNumberTable
+""")
+
     # local_auth shows the system fingerprint/face prompt, which needs a FragmentActivity
     for p in glob.glob("android/app/src/main/kotlin/**/MainActivity.kt", recursive=True):
         s = read(p)
