@@ -25,7 +25,6 @@ class AlbumsTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final app = AppScope.of(context);
     final lib = app.library;
-    final p = Palette.of(context);
     return ListenableBuilder(
       listenable: lib,
       builder: (context, _) => Scaffold(

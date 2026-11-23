@@ -31,7 +31,7 @@ class FakeSource implements MediaSource {
           name: i % 5 == 3 ? 'VID_2026${(11 - i ~/ 12).toString().padLeft(2, '0')}${(20 - i % 12).toString().padLeft(2, '0')}_1842$i.mp4' : 'IMG_${4100 + i}.jpg',
           taken: t.subtract(Duration(hours: i * 9 + (i % 3) * 2)),
           folder: folders[i % folders.length],
-          folderId: 'f${i % folders.length == 1 ? 0 : i % folders.length}',
+          folderId: {'Camera': 'f0', 'Screenshots': 'f3', 'WhatsApp Images': 'f4'}[folders[i % folders.length]]!,
           width: 4032,
           height: 3024,
           duration: i % 5 == 3 ? 14.0 + i : 0,

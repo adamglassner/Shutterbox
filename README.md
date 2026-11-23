@@ -1,6 +1,6 @@
 # Shutterbox
 
-A photo and video organizer for Windows 10 and 11, by Bytehawk Studio.
+A photo and video organizer for Windows 10 and 11 and Android, by Bytehawk Studio.
 
 Shutterbox shows the photos and videos already on your PC, with albums, favorites, tags, search, a viewer and slideshows, plus an encrypted **Locked album** for the ones that are nobody else's business. It reads your folders and never moves or changes your files.
 
@@ -10,6 +10,8 @@ Shutterbox shows the photos and videos already on your PC, with albums, favorite
 - `Shutterbox-<version>-win-x64.zip`: portable, just unzip and run `Shutterbox.exe`
 
 Neither needs .NET installed.
+
+**Android:** get `Shutterbox-Android-<version>.apk` from the newest `android-v…` release in [Releases](https://github.com/adamglassner/shutterbox/releases), open it on your phone and allow the install. After that, **Settings → Updates → Check for updates** installs new versions straight from GitHub (it also checks once a day). See [Shutterbox for Android](#shutterbox-for-android).
 
 ![Shutterbox library](docs/screenshots/library.png)
 
@@ -88,6 +90,22 @@ JPEG, PNG, GIF, BMP, TIFF, WebP, JPEG XR and ICO work out of the box. HEIC/HEIF 
 
 In the viewer: Left/Right, + and − to zoom, 0 to fit, Space for the slideshow, Esc to go back.
 
+## Shutterbox for Android
+
+Everything above, on your phone (Android 7 or later). It shows the photos and videos in your phone's gallery (choose which folders in **Settings → Folders**), with the same timeline, Videos section, viewer, details, search, albums, Favorites, Recently added, Folders, Trash, slideshow and Locked album.
+
+| Photos | Viewer | Locked album | Settings |
+|---|---|---|---|
+| ![Photos](https://raw.githubusercontent.com/adamglassner/Shutterbox/screenshots-android/01-photos.png) | ![Viewer](https://raw.githubusercontent.com/adamglassner/Shutterbox/screenshots-android/06-viewer.png) | ![Locked album](https://raw.githubusercontent.com/adamglassner/Shutterbox/screenshots-android/11-locked-album.png) | ![Settings](https://raw.githubusercontent.com/adamglassner/Shutterbox/screenshots-android/13-settings.png) |
+
+- **Selecting:** tap the check circles, or long-press a tile and drag across others (it scrolls as you go). **Select** on a day's heading, **Select all** in the selection bar.
+- **Import:** a folder (a camera card or USB drive through an adapter) or chosen files, copied into `DCIM/Shutterbox/2026/2026-10-14`, skipping what you already have.
+- **Trash:** emptying it deletes from your phone, into Android's own trash where it has one. **Move to Locked album** deletes the originals for good once they're encrypted and checked (Android asks you to allow it).
+- **Locked album:** the same format as on Windows, so one album works on both. Unlock with your PIN, password or recovery key, and turn on fingerprint or face unlock on each phone. To use an album from your PC, copy its `Shutterbox Locked album` folder to the phone (USB, or a sync app), then **Locked → Open a Locked album from a PC or another phone** (or Settings → Locked album) and pick it. **Settings → Locked album → Move to another folder** puts the phone's album where you can copy or sync it to a PC. Android asks once for "All files access" for these.
+- **Updates:** Settings → Updates. Android releases are tagged `android-v<version>`; the Windows releases (and the Bytehawk Studio Launcher) are unaffected.
+
+The phone keeps its library, settings and Locked album in Shutterbox's own storage (removed if you uninstall it, so move the Locked album to a folder of your choice, or restore what's in it, before uninstalling).
+
 ## Where things are kept
 
 | | |
@@ -103,7 +121,7 @@ Uninstalling Shutterbox leaves these and your photos alone.
 ## Coming later
 
 - **Shutterbox Server**: a server you run on your own PC or NAS to back up and sync your library and see it on your phone
-- Android and iOS apps
+- iOS app
 - People (faces) and Places (map)
 
 ## Building
@@ -116,6 +134,10 @@ Requires the .NET 8 SDK and, for the installer, Inno Setup 6.
 ```
 
 Every push is built and tested by GitHub Actions on Windows: it runs `Shutterbox.exe --self-test`, which makes a folder of sample photos and drives the real window through scanning, the timeline, search, albums, Trash, import, the viewer and both themes, saving screenshots. Pushing a new `<Version>` in `src/Shutterbox/Shutterbox.csproj` to `main` (with a matching `## <version>` section in `CHANGELOG.md`) publishes a GitHub Release, which the Bytehawk Studio Launcher picks up.
+
+### Building the Android app
+
+It's a Flutter app in [`mobile/`](mobile). GitHub Actions (`.github/workflows/android.yml`) creates the Android project, runs the tests (including one that checks the phone's Locked album against a reference copy of the Windows format, `mobile/tool/vault_ref.py`), renders screenshots to the `screenshots-android` branch, builds and signs the APK, starts it on an emulator, and on `main` publishes `android-v<version>` when `mobile/pubspec.yaml` has a new version (with a matching section in `mobile/CHANGELOG.md`).
 
 ## Design
 
