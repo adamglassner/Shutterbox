@@ -41,6 +41,8 @@ Future<void> main() async {
 }
 
 Future<void> _start(AppState app) async {
+  // the gallery plugin needs the activity, which is attached by the first frame
+  await WidgetsBinding.instance.endOfFrame;
   await app.library.scan(ask: true);
   if (app.library.access == true) {
     app.source.watch(app.library.scan);

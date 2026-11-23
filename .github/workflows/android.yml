@@ -169,6 +169,10 @@ jobs:
             adb install -r build/Shutterbox-Android-${{ steps.ver.outputs.version }}.apk
             adb shell pm grant com.bytehawkstudio.shutterbox android.permission.READ_MEDIA_IMAGES || true
             adb shell pm grant com.bytehawkstudio.shutterbox android.permission.READ_MEDIA_VIDEO || true
+            adb shell mkdir -p /sdcard/DCIM/Camera
+            for f in test/fixtures/photos/*.jpg; do adb push "$f" /sdcard/DCIM/Camera/ > /dev/null; done
+            adb shell content call --uri content://media --method scan_volume --arg external_primary || true
+            sleep 5
             adb logcat -c
             adb shell am start -W -n com.bytehawkstudio.shutterbox/.MainActivity
             sleep 30
