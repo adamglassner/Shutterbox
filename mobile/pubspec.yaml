@@ -1,3 +1,4 @@
+# Shutterbox for Android (CI makes the android/ project; see .github/workflows/android.yml)
 name: shutterbox
 description: Shutterbox for Android — your photos and videos, albums, search, slideshows and an encrypted Locked album. A Bytehawk Studio app.
 publish_to: none
