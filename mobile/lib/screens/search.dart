@@ -94,7 +94,7 @@ class _SearchScreenState extends State<SearchScreen> {
                       ActionChip(label: Text(s), onPressed: () => _text.text = s),
                   ]),
                   const SizedBox(height: 18),
-                  Text('Search looks at file names, folders, tags, captions, cameras, albums, months, years, people's names and what's in each photo. Several words narrow it down, like "dog beach" or "canon october".',
+                  Text('Search looks at file names, folders, tags, captions, cameras, albums, months, years, people\'s names and what\'s in each photo. Several words narrow it down, like "dog beach" or "canon october".',
                       style: TextStyle(color: p.text2, height: 1.4)),
                 ])
               : MediaGrid(

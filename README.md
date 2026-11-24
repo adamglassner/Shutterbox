@@ -34,6 +34,8 @@ Neither needs .NET installed.
 | **Slideshow** | Of everything, an album or a selection, oldest first, with crossfades. |
 | **Import** | From a camera card, phone or folder. Copies into date folders (`2026\2026-10-14`), skips photos you already have and can clear the card afterwards. Or drop files and folders on the window. |
 | **Videos** | Videos in your folders get their own **Videos** section, apart from your photos. Tiles show the length; the viewer plays them (play/pause, seek, mute). |
+| **People** | Faces in your photos, grouped by who they are. Name someone once and search for them; **Not them** and **Same person as** fix mistakes. Found on your PC (see below). |
+| **Search by what's in it** | Search for "dog", "beach", "cake", "car"… (about 1,000 kinds of things). |
 | **Places** | Every photo with a GPS location on an OpenStreetMap map. Nearby photos are grouped into one pin that splits as you zoom in; click a pin to see its photos. Map tiles are cached for 30 days. |
 | **On this day** | Photos taken on today's date in earlier years, grouped by year (a card at the top of Photos on Android, a sidebar entry on Windows). |
 | **Locked album** | An encrypted album for private photos and videos, opened with a PIN, a password or Windows Hello. See below. |
@@ -71,6 +73,10 @@ Select photos or videos and choose **Lock** (or drag them onto **Locked** in the
 - **Wrong guesses**: after 5 in a row Shutterbox makes you wait (30 seconds, doubling up to 15 minutes). Every wrong PIN, password or recovery key, on any device, is logged and you're told about them when you unlock. Optionally the camera **photographs wrong guesses**: the photo is encrypted to a public key whose private half is inside the album, so only someone who can unlock it can see them.
 - **Check the album** (every file still decrypts, useful after syncing) and **Get a new recovery key**.
 
+### People and things
+
+Shutterbox looks through your library in the background (newest photos first, at low priority) with three small models that run on your PC: [YuNet](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet) finds faces, [SFace](https://github.com/opencv/opencv_zoo/tree/main/models/face_recognition_sface) tells them apart and [MobileNetV2](https://github.com/opencv/opencv_zoo/tree/main/models/image_classification_mobilenet) recognises what's in each photo. Nothing is uploaded, and Locked album items are never looked at. Faces join the person they look most like; someone shows up in **People** once they're in two photos or have a name. What was found is kept in `%APPDATA%\Shutterbox\people.json`. Turn it off, or forget everyone and start again, in **Settings → People and things**. The Android app uses the same models and steps (`tools/vision_ref.py` is the reference both are tested against).
+
 ### File types
 
 JPEG, PNG, GIF, BMP, TIFF, WebP, JPEG XR and ICO work out of the box. HEIC/HEIF (iPhone), AVIF and camera RAW files (DNG, CR2, CR3, NEF, ARW…) use the codecs Windows has, so install **HEIF Image Extensions**, **AV1 Video Extension** or **Raw Image Extension** from the Microsoft Store if they don't show. Videos use the codecs Windows has: MP4 (H.264), MOV, WMV and AVI play out of the box; HEVC (H.265, many phones), AV1 and VP9/WebM need **HEVC Video Extensions**, **AV1 Video Extension** or **VP9 Video Extensions** from the Microsoft Store.
@@ -106,7 +112,7 @@ In the viewer: Left/Right, + and − to zoom, 0 to fit, Space for the slideshow,
 
 ## Shutterbox for Android
 
-Everything above, on your phone (Android 7 or later). It shows the photos and videos in your phone's gallery (choose which folders in **Settings → Folders**), with the same timeline, Videos section, viewer, details, search, albums, Favorites, Recently added, Folders, Places, On this day, Trash, slideshow and Locked album.
+Everything above, on your phone (Android 7 or later). It shows the photos and videos in your phone's gallery (choose which folders in **Settings → Folders**), with the same timeline, Videos section, viewer, details, search, albums, Favorites, Recently added, Folders, People, Places, On this day, Trash, slideshow and Locked album.
 
 | Photos | Viewer | Locked album | Settings |
 |---|---|---|---|
@@ -126,6 +132,7 @@ The phone keeps its library, settings and Locked album in Shutterbox's own stora
 |---|---|
 | `%APPDATA%\Shutterbox\library.json` | Your library: folders, photo details, favorites, tags, captions, rotation, albums, Trash |
 | `%APPDATA%\Shutterbox\settings.json` | Settings |
+| `%APPDATA%\Shutterbox\people.json` | People: faces found, names you gave them, and what's in each photo |
 | `%APPDATA%\Shutterbox\Locked\` | The Locked album (encrypted), unless you moved it |
 | `%APPDATA%\Shutterbox\hello.bin` | Windows Hello's copy of the Locked album key, protected for your Windows account (this PC only) |
 | `%LOCALAPPDATA%\Shutterbox\thumbs\` | Thumbnail cache (safe to delete; Settings → Clear thumbnail cache) |
@@ -136,7 +143,6 @@ Uninstalling Shutterbox leaves these and your photos alone.
 
 - **Shutterbox Server**: a server you run on your own PC or NAS to back up and sync your library and see it on your phone
 - iOS app
-- People (faces) and search by what's in a photo, both on your own device (0.6.0)
 
 ## Building
 
