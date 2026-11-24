@@ -145,7 +145,7 @@ class _ViewerScreenState extends State<ViewerScreen> {
       listenable: Listenable.merge([app.library, app.vault]),
       builder: (context, _) {
         if (_items.isEmpty) return const Scaffold(backgroundColor: Colors.black);
-        if (_item.locked && !app.vault.isUnlocked) {
+        if (_item.locked && (!app.vault.isUnlocked || (_item.protectedIn != null && !(app.vault.album(_item.protectedIn)?.isOpen ?? false)))) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) Navigator.of(context).pop();
           });
@@ -232,8 +232,7 @@ class _ViewerScreenState extends State<ViewerScreen> {
     final rotate = b(Icons.rotate_right, 'Rotate', () async {
       if (i.locked) {
         await app.vault.rotate(i, 90);
-        final fresh = app.vault.items.where((x) => x.vaultId == i.vaultId).firstOrNull;
-        if (fresh != null) setState(() => _items[_index] = fresh);
+        setState(() {});
       } else {
         app.library.rotate([i], 90);
         setState(() {});
@@ -257,7 +256,12 @@ class _ViewerScreenState extends State<ViewerScreen> {
                   ]
                 : i.locked
                     ? [
+                        b(fav ? Icons.favorite : Icons.favorite_border, 'Favorite', () async {
+                          await app.vault.setDetails(i, favorite: !i.favorite);
+                          setState(() {});
+                        }, color: fav ? const Color(0xFFFF7A7A) : Colors.white),
                         rotate,
+                        b(Icons.share_outlined, 'Share', () => LockedActions.share(context, [i])),
                         b(Icons.lock_open, 'Restore', () async {
                           if (await LockedActions.restore(context, [i])) _drop();
                         }),

@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../actions.dart';
 import '../app.dart';
 import '../models.dart';
+import '../native.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import 'albums.dart';
@@ -24,34 +27,83 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   late int _tab = widget.initialTab;
   final _photos = Selection(), _videos = Selection(), _locked = Selection();
+  AppState? _app;
+  StreamSubscription<void>? _shared;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final app = AppScope.of(context);
+    if (_app == app) return;
+    _app?.showLocked.removeListener(_toLocked);
+    _app?.showPhotos.removeListener(_toPhotos);
+    _app = app;
+    app.showLocked.addListener(_toLocked);
+    app.showPhotos.addListener(_toPhotos);
+    if (app.native && isAndroid) {
+      _shared ??= Native.sharedArrived.listen((_) => _takeShared());
+      WidgetsBinding.instance.addPostFrameCallback((_) => _takeShared());
+    }
+  }
+
+  /// Something was shared to "Lock with Shutterbox".
+  Future<void> _takeShared() async {
+    final files = await Native.takeShared();
+    if (files.isEmpty || !mounted) return;
+    Navigator.of(context).popUntil((r) => r.isFirst);
+    setState(() => _tab = 3);
+    await LockedActions.lockShared(context, files);
+  }
+
+  void _toLocked() {
+    if (!mounted) return;
+    Navigator.of(context).popUntil((r) => r.isFirst);
+    setState(() => _tab = 3);
+  }
+
+  void _toPhotos() {
+    if (!mounted) return;
+    Navigator.of(context).popUntil((r) => r.isFirst);
+    _locked.clear();
+    setState(() => _tab = 0);
+  }
 
   @override
   void dispose() {
+    _app?.showLocked.removeListener(_toLocked);
+    _app?.showPhotos.removeListener(_toPhotos);
+    _shared?.cancel();
     _photos.dispose();
     _videos.dispose();
     _locked.dispose();
     super.dispose();
   }
 
-  Widget _nav() => NavigationBar(
-        selectedIndex: _tab,
+  Widget _nav(bool hideLocked) => NavigationBar(
+        // with the Locked tab hidden, it shows nothing selected while you're in it
+        selectedIndex: hideLocked && _tab == 3 ? 0 : _tab,
         onDestinationSelected: (i) {
           _photos.clear();
           _videos.clear();
           _locked.clear();
           setState(() => _tab = i);
         },
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.photo_outlined), selectedIcon: Icon(Icons.photo), label: 'Photos'),
-          NavigationDestination(icon: Icon(Icons.movie_outlined), selectedIcon: Icon(Icons.movie), label: 'Videos'),
-          NavigationDestination(icon: Icon(Icons.photo_album_outlined), selectedIcon: Icon(Icons.photo_album), label: 'Albums'),
-          NavigationDestination(icon: Icon(Icons.lock_outline), selectedIcon: Icon(Icons.lock), label: 'Locked'),
+        destinations: [
+          const NavigationDestination(icon: Icon(Icons.photo_outlined), selectedIcon: Icon(Icons.photo), label: 'Photos'),
+          const NavigationDestination(icon: Icon(Icons.movie_outlined), selectedIcon: Icon(Icons.movie), label: 'Videos'),
+          const NavigationDestination(icon: Icon(Icons.photo_album_outlined), selectedIcon: Icon(Icons.photo_album), label: 'Albums'),
+          if (!hideLocked) const NavigationDestination(icon: Icon(Icons.lock_outline), selectedIcon: Icon(Icons.lock), label: 'Locked'),
         ],
       );
 
   @override
   Widget build(BuildContext context) {
-    final nav = _nav();
+    final app = AppScope.of(context);
+    return ListenableBuilder(listenable: app.settings, builder: (context, _) => _build(context, app.settings.hideLocked && app.vault.isSetUp));
+  }
+
+  Widget _build(BuildContext context, bool hideLocked) {
+    final nav = _nav(hideLocked);
     return PopScope(
       canPop: _tab == 0 && !_photos.active,
       onPopInvokedWithResult: (didPop, _) {
@@ -93,7 +145,11 @@ class TimelineTab extends StatelessWidget {
         return Scaffold(
           appBar: AppBar(
             title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(videos ? 'Videos' : 'Photos'),
+              GestureDetector(
+                // the way into a hidden Locked tab
+                onLongPress: videos ? null : () => app.showLocked.value++,
+                child: Text(videos ? 'Videos' : 'Photos'),
+              ),
               Text(
                 lib.scanning && items.isEmpty ? 'Looking for your ${videos ? 'videos' : 'photos'}…' : '${items.length} ${videos ? (items.length == 1 ? 'video' : 'videos') : (items.length == 1 ? 'photo' : 'photos')}',
                 style: TextStyle(fontSize: 12.5, color: p.text3, fontWeight: FontWeight.w400),

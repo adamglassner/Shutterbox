@@ -21,7 +21,12 @@ class Item {
     this.orientation = 1,
     this.takenSource = 'file',
     this.source,
+    this.caption = '',
+    List<String>? tags,
+    this.favorite = false,
+    this.protectedIn,
   })  : added = added ?? taken,
+        tags = tags ?? [],
         isVideo = isVideo ?? isVideoName(name);
 
   /// The gallery's id, or "locked-<id>" for the Locked album.
@@ -52,6 +57,14 @@ class Item {
 
   /// The gallery's object for this item (an AssetEntity on the phone).
   final Object? source;
+
+  /// Locked album items keep these encrypted with them (the library keeps its own in ItemMeta).
+  String caption;
+  List<String> tags;
+  bool favorite;
+
+  /// The Locked album's protected album this item is in (null: the main album).
+  final String? protectedIn;
 
   bool get locked => vaultId != null;
   String get camera => [make, model].whereType<String>().where((s) => s.trim().isNotEmpty).join(' ').trim();

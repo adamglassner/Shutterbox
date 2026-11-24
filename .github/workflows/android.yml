@@ -71,7 +71,7 @@ jobs:
       - name: The Windows format opens what the phone made (reference implementation)
         run: |
           python3 -c "import cryptography" 2>/dev/null || python3 -m pip install --quiet cryptography
-          python3 tool/vault_ref.py check "$RUNNER_TEMP/phone-locked-album"
+          python3 tool/vault_ref.py check4 "$RUNNER_TEMP/phone-locked-album"
 
       - name: Screenshots
         run: |

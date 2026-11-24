@@ -25,7 +25,8 @@ class FilesAccess {
       '$why\n\nAndroid will open a settings page: turn on "Allow access to manage all files" for Shutterbox, then come back.',
       action: 'Continue',
     );
-    if (!go) return false;
+    if (!go || !context.mounted) return false;
+    AppScope.read(context).expectReturn();
     try {
       final s = await Permission.manageExternalStorage.request();
       return s.isGranted;

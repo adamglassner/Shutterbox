@@ -1,5 +1,20 @@
 # Shutterbox for Android
 
+## 0.4.0
+
+Locked album:
+
+- **Works on a PC and a phone at once through a cloud folder.** Each item's details now have their own encrypted file, so changes made on different devices merge instead of overwriting each other (a sync app's conflict copies are sorted out too). Albums from 0.3.0 open as before, and 0.3.0 can still read what's added.
+- **Keep it out of screenshots:** while it's unlocked, screenshots and screen recordings come out black and the recent-apps preview is blank (on by default).
+- **Lock as soon as you leave** Shutterbox (optional), **lock when the phone is put face down** (optional), and a lock button that also takes you back to Photos.
+- **Hide the Locked tab:** open it by pressing and holding "Photos" at the top, or by typing your PIN or password in search.
+- **Lock with Shutterbox** from Android's share menu, and a **camera** in the Locked album whose photos go straight in without touching the gallery.
+- **Share for a moment:** sends temporary decrypted copies, deleted when the album locks.
+- **Wrong guesses:** after 5 wrong guesses in a row Shutterbox makes you wait, longer each time; every wrong guess on any device is logged and you're told about them when you unlock. Optionally, the front camera **photographs wrong guesses**, encrypted so only you can see them.
+- **Albums with their own PIN or password**, re-encrypted with their own key.
+- **Captions, tags, favorites and search** inside the Locked album, all encrypted.
+- **Check the album** (every file decrypts) and **get a new recovery key** in Settings.
+
 ## 0.3.0
 
 The first Shutterbox for Android, with everything Shutterbox 0.3.0 for Windows has:

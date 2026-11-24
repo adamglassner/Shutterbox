@@ -35,6 +35,26 @@ class Settings extends ChangeNotifier {
 
   bool askedForAccess = false;
 
+  /// Identifies this phone in the Locked album's wrong-guess log.
+  String deviceId = '';
+
+  // Locked album, on this phone
+  /// Lock the moment you leave Shutterbox (switch apps or turn the screen off).
+  bool lockOnLeave = false;
+
+  /// Lock when the phone is put face down.
+  bool lockFaceDown = false;
+
+  /// Hide the Locked tab (open it by long-pressing Photos, or by typing the PIN in search).
+  bool hideLocked = false;
+
+  /// Keep the Locked album out of screenshots and the recent-apps preview.
+  bool protectScreen = true;
+
+  /// Wrong guesses in a row here, and until when to wait before the next.
+  int wrongInARow = 0;
+  String waitUntil = '';
+
   Map<String, dynamic> toJson() => {
         'theme': theme,
         'accent': accent,
@@ -46,6 +66,13 @@ class Settings extends ChangeNotifier {
         'lastUpdateCheck': lastUpdateCheck,
         'skippedVersion': skippedVersion,
         'askedForAccess': askedForAccess,
+        'deviceId': deviceId,
+        'lockOnLeave': lockOnLeave,
+        'lockFaceDown': lockFaceDown,
+        'hideLocked': hideLocked,
+        'protectScreen': protectScreen,
+        'wrongInARow': wrongInARow,
+        'waitUntil': waitUntil,
       };
 
   void _read(Map<String, dynamic> j) {
@@ -59,6 +86,20 @@ class Settings extends ChangeNotifier {
     lastUpdateCheck = '${j['lastUpdateCheck'] ?? ''}';
     skippedVersion = '${j['skippedVersion'] ?? ''}';
     askedForAccess = j['askedForAccess'] == true;
+    deviceId = '${j['deviceId'] ?? ''}';
+    lockOnLeave = j['lockOnLeave'] == true;
+    lockFaceDown = j['lockFaceDown'] == true;
+    hideLocked = j['hideLocked'] == true;
+    protectScreen = j['protectScreen'] != false;
+    wrongInARow = (j['wrongInARow'] as num?)?.toInt() ?? 0;
+    waitUntil = '${j['waitUntil'] ?? ''}';
+  }
+
+  /// How long to wait after [wrongInARow] wrong guesses: none for the first 4, then 30 seconds, doubling up to 15 minutes.
+  static Duration waitAfter(int wrong) {
+    if (wrong < 5) return Duration.zero;
+    final s = 30 * (1 << (wrong - 5).clamp(0, 5).toInt());
+    return Duration(seconds: s > 900 ? 900 : s);
   }
 
   static Future<Settings> load(File file) async {

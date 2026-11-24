@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
 """A reference copy of the Windows app's Locked album format (src/Shutterbox/Library/Vault.cs), for testing the phone's.
 
-  python3 tool/vault_ref.py make <folder>    writes a Locked album exactly as Shutterbox for Windows does (test fixture)
-  python3 tool/vault_ref.py check <folder>   opens a Locked album the phone app made and checks every file decrypts
+  python3 tool/vault_ref.py make <folder>      writes a Locked album exactly as Shutterbox 0.3.0 for Windows does (test fixture)
+  python3 tool/vault_ref.py check <folder>     opens a Locked album the phone app made and checks every file decrypts
+  python3 tool/vault_ref.py make4 <folder>     writes a 0.4.0 Locked album (records, albums, a protected album, a sync
+                                               conflict copy, a deleted item, an item only in the old index, wrong
+                                               guesses and a photographed one): see docs/locked-album-format.md
+  python3 tool/vault_ref.py check4 <folder>    checks a 0.4.0 album an app made (PIN 2468, recovery key in recovery.txt,
+                                               protected album PIN 9999)
 
 Format: vault.json (plain), index.sbox, items/<id>.sbox, thumbs/<id>.sbox. Each .sbox is "SBOX1", a 12-byte nonce, then
 1 MiB pieces, each its 16-byte AES-256-GCM tag followed by the encrypted bytes. A piece's nonce is the base nonce with
@@ -193,5 +198,181 @@ def check(folder):
     print("The phone's Locked album opens with the Windows format")
 
 
+# ---------------------------------------------------------------- 0.4.0
+
+ALBUM_PIN = "9999"
+RECORD_KEYS = ["Id", "Name", "Size", "Taken", "TakenSource", "Width", "Height", "DurationSeconds", "Make", "Model",
+               "Latitude", "Longitude", "Orientation", "Rotation", "Added", "HasThumb",
+               "Caption", "Tags", "Favorite", "AlbumIds", "Modified", "Deleted"]
+
+
+def b64(b):
+    return base64.b64encode(b).decode()
+
+
+def unb64(s):
+    return base64.b64decode(s)
+
+
+def int_b64(n):
+    return b64(n.to_bytes((n.bit_length() + 7) // 8 or 1, "big"))
+
+
+def b64_int(s):
+    return int.from_bytes(unb64(s), "big")
+
+
+def record(item, **extra):
+    r = dict(item)
+    r.update({"Caption": "", "Tags": [], "Favorite": False, "AlbumIds": [], "Modified": "2026-11-24T05:00:00Z", "Deleted": False})
+    r.update(extra)
+    return r
+
+
+def put(folder, rel, obj_or_bytes, key, seed):
+    path = os.path.join(folder, rel)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    data = obj_or_bytes if isinstance(obj_or_bytes, (bytes, bytearray)) else json.dumps(obj_or_bytes, separators=(",", ":")).encode()
+    with open(path, "wb") as f:
+        f.write(encrypt(data, key, det(12, seed)))
+
+
+def make4(folder):
+    """A 0.4.0 Locked album, as the apps write it (see docs/locked-album-format.md)."""
+    from cryptography.hazmat.primitives.asymmetric import rsa, padding
+    from cryptography.hazmat.primitives import hashes
+    make(folder)  # the 0.3.0 album: vault.json, items, index.sbox
+    key = det(32, "key")
+    with open(os.path.join(folder, "vault.json")) as f:
+        info = json.load(f)
+    info["Id"] = "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f"
+    with open(os.path.join(folder, "vault.json"), "w") as f:
+        f.write(json.dumps(info, indent=2))
+    with open(os.path.join(folder, "index.sbox"), "rb") as f:
+        index = json.loads(decrypt(f.read(), key))
+    items = {i["Id"]: i for i in index["Items"]}
+    photo, video, exact, empty = list(items)
+    # records for three of the four: "empty.gif" is only in the index (added by 0.3.0 after the upgrade)
+    put(folder, f"records/{photo}.sbox", record(items[photo], Caption="Sunrise at the coast", Tags=["Beach", "Trip"], Favorite=True,
+                                               AlbumIds=["a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"]), key, "r1")
+    # a sync conflict copy of the photo's record, older: loses
+    put(folder, f"records/{photo} (1).sbox", record(items[photo], Caption="older caption", Modified="2026-11-20T05:00:00Z"), key, "r1c")
+    # the video's record, and a newer conflict copy that wins (rotated, in an album)
+    put(folder, f"records/{video}.sbox", record(items[video], Modified="2026-11-22T05:00:00Z"), key, "r2")
+    put(folder, f"records/{video}-conflict-PIXEL.sbox", record(items[video], Rotation=180, AlbumIds=["a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"],
+                                                                 Modified="2026-11-23T05:00:00Z"), key, "r2c")
+    # "exact.png" was deleted on another device: its record says so, so the stale index doesn't bring it back
+    put(folder, f"records/{exact}.sbox", record(items[exact], Deleted=True), key, "r3")
+    os.remove(os.path.join(folder, "items", exact + ".sbox"))
+    # albums: "Private" (renamed on a device to "Private stuff"), a deleted one, and one with its own PIN
+    put(folder, "albums/a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1.sbox", {"Id": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1", "Name": "Private stuff",
+        "Created": "2026-11-20T10:05:00", "Modified": "2026-11-24T05:00:00Z", "Deleted": False, "CoverId": video, "Protected": None}, key, "a1")
+    put(folder, "albums/b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2.sbox", {"Id": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2", "Name": "Gone",
+        "Created": "2026-11-21T10:05:00", "Modified": "2026-11-24T05:00:00Z", "Deleted": True, "CoverId": None, "Protected": None}, key, "a2")
+    akey, asalt = det(32, "album key"), det(16, "album salt")
+    put(folder, "albums/c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3.sbox", {"Id": "c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3", "Name": "Very private",
+        "Created": "2026-11-22T10:05:00", "Modified": "2026-11-24T05:00:00Z", "Deleted": False, "CoverId": None,
+        "Protected": {"Kind": "PIN", "Salt": b64(asalt), "Iterations": ITERATIONS,
+                      "WrappedKey": wrap(akey, derive(ALBUM_PIN, asalt, ITERATIONS), det(12, "n3"))}}, key, "a3")
+    secret = det(2000, "secret photo")
+    pid = "d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4"
+    base = os.path.join(folder, "protected", "c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3")
+    put(base, f"items/{pid}.sbox", secret, akey, "p1")
+    put(base, f"records/{pid}.sbox", record({**items[photo], "Id": pid, "Name": "secret.jpg", "Size": len(secret), "HasThumb": False, "Rotation": 0}), akey, "p2")
+    # wrong guesses: one on a PC since the last unlock
+    os.makedirs(os.path.join(folder, "attempts"), exist_ok=True)
+    with open(os.path.join(folder, "attempts", "pc-0001.json"), "w") as f:
+        json.dump({"Device": "Desktop PC", "LastUnlock": "2026-11-23T20:00:00Z",
+                   "Failed": [{"Time": "2026-11-23T19:00:00Z", "What": "PIN"}, {"Time": "2026-11-24T02:14:00Z", "What": "PIN"}]}, f)
+    # photographing wrong guesses
+    priv = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    n = priv.private_numbers()
+    with open(os.path.join(folder, "intruder.json"), "w") as f:
+        json.dump({"PublicKey": {"N": int_b64(n.public_numbers.n), "E": int_b64(n.public_numbers.e)}}, f)
+    put(folder, "intruder-key.sbox", {"N": int_b64(n.public_numbers.n), "E": int_b64(n.public_numbers.e), "D": int_b64(n.d),
+        "P": int_b64(n.p), "Q": int_b64(n.q), "DP": int_b64(n.dmp1), "DQ": int_b64(n.dmq1), "InverseQ": int_b64(n.iqmp)}, key, "ik")
+    os.makedirs(os.path.join(folder, "intruders"), exist_ok=True)
+    fkey = det(32, "intruder file key")
+    wrapped = priv.public_key().encrypt(fkey, padding.OAEP(mgf=padding.MGF1(hashes.SHA256()), algorithm=hashes.SHA256(), label=None))
+    jpeg = det(3000, "intruder photo")
+    with open(os.path.join(folder, "intruders", "20261124T021400Z-abcd.sbox"), "wb") as f:
+        f.write(b"SBXI1" + len(wrapped).to_bytes(2, "big") + wrapped + encrypt(jpeg, fkey, det(12, "ij")))
+    with open(os.path.join(folder, "expected4.json"), "w") as f:
+        json.dump({"secret": hashlib.sha256(secret).hexdigest(), "intruder": hashlib.sha256(jpeg).hexdigest()}, f)
+    print("made 0.4.0 album", folder)
+
+
+def read_intruder(path, priv_json):
+    from cryptography.hazmat.primitives.asymmetric import rsa, padding
+    from cryptography.hazmat.primitives import hashes
+    p = {k: b64_int(v) for k, v in priv_json.items()}
+    priv = rsa.RSAPrivateNumbers(p["P"], p["Q"], p["D"], p["DP"], p["DQ"], p["InverseQ"], rsa.RSAPublicNumbers(p["E"], p["N"])).private_key()
+    with open(path, "rb") as f:
+        blob = f.read()
+    assert blob[:5] == b"SBXI1"
+    n = int.from_bytes(blob[5:7], "big")
+    fkey = priv.decrypt(blob[7:7 + n], padding.OAEP(mgf=padding.MGF1(hashes.SHA256()), algorithm=hashes.SHA256(), label=None))
+    return decrypt(blob[7 + n:], fkey)
+
+
+def check4(folder):
+    """A 0.4.0 album an app made: PIN 2468, recovery key in recovery.txt, a protected album with PIN 9999."""
+    check(folder)  # everything 0.3.0 can see still works
+    with open(os.path.join(folder, "vault.json")) as f:
+        info = json.load(f)
+    assert info.get("Id"), "vault.json has no Id"
+    key = unwrap(info["WrappedKey"], derive(PIN, unb64(info["Salt"]), info["Iterations"]))
+    records = {}
+    for name in os.listdir(os.path.join(folder, "records")):
+        with open(os.path.join(folder, "records", name), "rb") as f:
+            r = json.loads(decrypt(f.read(), key))
+        for k in RECORD_KEYS:
+            assert k in r, f"record {name} is missing {k}"
+        assert r["Modified"].endswith("Z"), "Modified must be UTC"
+        assert isinstance(r["Tags"], list) and isinstance(r["AlbumIds"], list)
+        for k in ["Size", "Width", "Height", "Orientation", "Rotation"]:
+            assert isinstance(r[k], int) and not isinstance(r[k], bool), f"{k} must be a whole number"
+        assert name == r["Id"] + ".sbox", f"stray record file {name}"
+        records[r["Id"]] = r
+    with open(os.path.join(folder, "index.sbox"), "rb") as f:
+        index = json.loads(decrypt(f.read(), key))
+    live = {i for i, r in records.items() if not r["Deleted"]}
+    assert {i["Id"] for i in index["Items"]} == live, "index.sbox must list exactly the items that aren't deleted"
+    for i in live:
+        assert os.path.exists(os.path.join(folder, "items", i + ".sbox"))
+    albums = {}
+    for name in os.listdir(os.path.join(folder, "albums")):
+        with open(os.path.join(folder, "albums", name), "rb") as f:
+            a = json.loads(decrypt(f.read(), key))
+        for k in ["Id", "Name", "Created", "Modified", "Deleted", "CoverId", "Protected"]:
+            assert k in a, f"album {name} is missing {k}"
+        albums[a["Id"]] = a
+    protected = [a for a in albums.values() if a["Protected"] and not a["Deleted"]]
+    for a in protected:
+        pr = a["Protected"]
+        akey = unwrap(pr["WrappedKey"], derive(ALBUM_PIN, unb64(pr["Salt"]), pr["Iterations"]))
+        base = os.path.join(folder, "protected", a["Id"])
+        for name in os.listdir(os.path.join(base, "records")):
+            with open(os.path.join(base, "records", name), "rb") as f:
+                r = json.loads(decrypt(f.read(), akey))
+            if r["Deleted"]:
+                continue
+            with open(os.path.join(base, "items", r["Id"] + ".sbox"), "rb") as f:
+                assert len(decrypt(f.read(), akey)) == r["Size"]
+            assert r["Id"] not in {i["Id"] for i in index["Items"]}, "a protected album's items must not be in index.sbox"
+        print("protected album", a["Name"], "opens with its PIN")
+    if os.path.exists(os.path.join(folder, "intruder.json")):
+        with open(os.path.join(folder, "intruder-key.sbox"), "rb") as f:
+            priv = json.loads(decrypt(f.read(), key))
+        for name in os.listdir(os.path.join(folder, "intruders")):
+            read_intruder(os.path.join(folder, "intruders", name), priv)
+            print("intruder photo", name, "decrypts")
+    for name in os.listdir(os.path.join(folder, "attempts")) if os.path.isdir(os.path.join(folder, "attempts")) else []:
+        with open(os.path.join(folder, "attempts", name)) as f:
+            a = json.load(f)
+        assert "Failed" in a and "Device" in a
+    print(f"0.4.0 album OK: {len(live)} items, {len(albums)} albums, {len(protected)} protected")
+
+
 if __name__ == "__main__":
-    {"make": make, "check": check}[sys.argv[1]](sys.argv[2])
+    {"make": make, "check": check, "make4": make4, "check4": check4}[sys.argv[1]](sys.argv[2])

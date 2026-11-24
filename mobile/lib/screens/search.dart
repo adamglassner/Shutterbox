@@ -61,6 +61,14 @@ class _SearchScreenState extends State<SearchScreen> {
               controller: _text,
               autofocus: widget.initial.isEmpty,
               textInputAction: TextInputAction.search,
+              onSubmitted: (q) async {
+                // with the Locked tab hidden, its PIN or password typed here opens it
+                if (!app.settings.hideLocked || !app.vault.isSetUp || q.isEmpty) return;
+                if (await app.vault.unlock(q, log: false)) {
+                  _text.clear();
+                  app.showLocked.value++;
+                }
+              },
               decoration: InputDecoration(
                 hintText: 'Search your photos and videos',
                 filled: false,

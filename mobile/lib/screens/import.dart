@@ -28,6 +28,7 @@ class _ImportScreenState extends State<ImportScreen> {
   }
 
   Future<void> _pickFiles() async {
+    AppScope.read(context).expectReturn();
     final r = await FilePicker.platform.pickFiles(type: FileType.media, allowMultiple: true);
     if (r == null || !mounted) return;
     final files = [for (final f in r.files) if (f.path != null) File(f.path!)];
@@ -36,6 +37,7 @@ class _ImportScreenState extends State<ImportScreen> {
 
   Future<void> _pickFolder() async {
     if (!await FilesAccess.ensure(context, 'To import a whole folder (a camera card, a USB drive, a folder from your computer), Shutterbox needs to read it.')) return;
+    AppScope.read(context).expectReturn();
     final dir = await FilePicker.platform.getDirectoryPath(dialogTitle: 'Choose the folder to import');
     if (dir == null || !mounted) return;
     final files = <File>[];

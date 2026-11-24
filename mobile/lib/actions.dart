@@ -26,6 +26,7 @@ class Actions2 {
       if (context.mounted) toast(context, 'Couldn\'t find the files to share.');
       return;
     }
+    AppScope.read(context).expectReturn();
     await SharePlus.instance.share(ShareParams(files: files));
   }
 
@@ -37,6 +38,7 @@ class Actions2 {
       if (context.mounted) toast(context, 'Couldn\'t find the file.');
       return;
     }
+    AppScope.read(context).expectReturn();
     final r = await OpenFilex.open(f.path);
     if (r.type != ResultType.done && context.mounted) toast(context, 'No app could open it (${r.message}).');
   }

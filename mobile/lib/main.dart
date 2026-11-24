@@ -26,7 +26,8 @@ Future<void> main() async {
   final library = Library(DeviceSource(), settings, file: File('${support.path}/library.json'));
   await library.load();
   final defaultLocked = '${support.path}/Locked';
-  final vault = Vault(settings.lockedFolder ?? defaultLocked, tempFolder: '${cache.path}/LockedPlayback');
+  if (settings.deviceId.isEmpty) settings.update((s) => s.deviceId = VaultItem.newId().substring(0, 12));
+  final vault = Vault(settings.lockedFolder ?? defaultLocked, tempFolder: '${cache.path}/LockedPlayback', deviceId: settings.deviceId, deviceName: 'Android phone');
   vault.cleanTemp(); // in case Shutterbox was closed while a Locked album video played
   final app = AppState(
     settings: settings,
@@ -82,8 +83,10 @@ class _ShutterboxAppState extends State<ShutterboxApp> with WidgetsBindingObserv
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final app = widget.app;
     switch (state) {
+      case AppLifecycleState.paused:
+        app.left();
       case AppLifecycleState.resumed:
-        app.checkAutoLock();
+        app.returned();
         if (app.library.access != true) app.library.scan(); // after allowing access in Android's settings
       case AppLifecycleState.detached:
         app.vault.lock(); // always when Shutterbox closes

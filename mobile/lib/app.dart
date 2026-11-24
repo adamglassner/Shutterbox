@@ -3,10 +3,12 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 
 import 'bytes_image.dart';
 import 'library.dart';
 import 'media_source.dart';
+import 'native.dart';
 import 'models.dart';
 import 'settings.dart';
 import 'updater.dart';
@@ -14,9 +16,73 @@ import 'vault/vault.dart';
 
 /// Everything the screens share: settings, the library, the Locked album and the updater.
 class AppState {
-  AppState({required this.settings, required this.library, required this.vault, required this.updater, required this.defaultLockedFolder, required this.cacheFolder, bool autoLock = true}) {
+  AppState({required this.settings, required this.library, required this.vault, required this.updater, required this.defaultLockedFolder, required this.cacheFolder, bool autoLock = true, this.native = true}) {
     if (autoLock) _autoLock = Timer.periodic(const Duration(seconds: 15), (_) => checkAutoLock());
     vault.addListener(_vaultChanged);
+    settings.addListener(_settingsChanged);
+  }
+
+  /// False in tests: no Android-only calls (secure window, sensors).
+  final bool native;
+
+  /// Asks Home to show the Locked tab (even when it's hidden).
+  final showLocked = ValueNotifier<int>(0);
+
+  /// Asks Home to switch to Photos (after a panic lock).
+  final showPhotos = ValueNotifier<int>(0);
+
+  bool _expectingReturn = false;
+
+  /// Shutterbox is about to open another app's screen (share sheet, file picker, camera): coming back isn't "leaving".
+  void expectReturn() => _expectingReturn = true;
+
+  /// Android says Shutterbox went to the background.
+  void left() {
+    if (_expectingReturn) return;
+    if (settings.lockOnLeave) vault.lock();
+  }
+
+  void returned() {
+    _expectingReturn = false;
+    checkAutoLock();
+    if (vault.isUnlocked) vault.reload();
+  }
+
+  /// Locks everything and goes to Photos.
+  void panicLock() {
+    vault.lock();
+    showPhotos.value++;
+  }
+
+  StreamSubscription<AccelerometerEvent>? _tilt;
+  DateTime? _faceDownSince;
+
+  void _settingsChanged() => _syncNative();
+
+  void _syncNative() {
+    if (!native) return;
+    final open = vault.isUnlocked;
+    Native.setSecure(open && settings.protectScreen);
+    final watch = open && settings.lockFaceDown;
+    if (watch && _tilt == null) {
+      try {
+        _tilt = accelerometerEventStream(samplingPeriod: SensorInterval.uiInterval).listen((e) {
+          // face down: gravity points out of the screen's back
+          if (e.z < -8.5) {
+            _faceDownSince ??= DateTime.now();
+            if (DateTime.now().difference(_faceDownSince!).inMilliseconds > 800) {
+              _faceDownSince = null;
+              panicLock();
+            }
+          } else {
+            _faceDownSince = null;
+          }
+        }, onError: (_) {});
+      } catch (_) {}
+    } else if (!watch && _tilt != null) {
+      _tilt?.cancel();
+      _tilt = null;
+    }
   }
 
   final Settings settings;
@@ -39,6 +105,7 @@ class AppState {
       PaintingBinding.instance.imageCache.clearLiveImages();
     }
     _wasUnlocked = vault.isUnlocked;
+    _syncNative();
     // remember where the album is (moved, or opened from another device)
     final f = vault.folder == defaultLockedFolder ? null : vault.folder;
     if (f != settings.lockedFolder) settings.update((s) => s.lockedFolder = f);
@@ -54,15 +121,23 @@ class AppState {
   void touch() => vault.lastActivity = DateTime.now();
 
   ImageProvider thumbnail(Item i, int pixels) =>
-      i.locked ? BytesImage('locked-thumb:${i.vaultId}', () => vault.readThumb(i.vaultId!)) : source.thumbnail(i, pixels);
+      i.locked ? BytesImage('locked-thumb:${i.vaultId}', () => vault.readThumb(i.vaultId!, i.protectedIn)) : source.thumbnail(i, pixels);
 
-  ImageProvider full(Item i) => i.locked ? BytesImage('locked-full:${i.vaultId}', () => vault.readBytes(i.vaultId!)) : source.full(i);
+  ImageProvider full(Item i) => i.locked ? BytesImage('locked-full:${i.vaultId}', () => vault.readBytes(i.vaultId!, i.protectedIn)) : source.full(i);
 
-  bool isFavorite(Item i) => !i.locked && library.isFavorite(i);
+  bool isFavorite(Item i) => i.locked ? i.favorite : library.isFavorite(i);
 
   void dispose() {
     _autoLock?.cancel();
+    _tilt?.cancel();
     vault.removeListener(_vaultChanged);
+    settings.removeListener(_settingsChanged);
+  }
+
+  /// Drops decrypted pictures from memory (after locking a protected album).
+  void forgetPictures() {
+    PaintingBinding.instance.imageCache.clear();
+    PaintingBinding.instance.imageCache.clearLiveImages();
   }
 }
 

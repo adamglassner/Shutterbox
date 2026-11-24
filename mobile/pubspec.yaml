@@ -2,7 +2,7 @@
 name: shutterbox
 description: Shutterbox for Android — your photos and videos, albums, search, slideshows and an encrypted Locked album. A Bytehawk Studio app.
 publish_to: none
-version: 0.3.0+1
+version: 0.4.0+2
 
 environment:
   sdk: ^3.5.0
@@ -25,6 +25,9 @@ dependencies:
   video_player: ^2.9.2
   share_plus: '>=11.0.0 <14.0.0'
   exif: ^3.3.0
+  camera: '>=0.11.0 <0.13.0'
+  sensors_plus: '>=6.0.0 <8.0.0'
+  pointycastle: '>=3.7.0 <5.0.0'
 
 dev_dependencies:
   flutter_test:

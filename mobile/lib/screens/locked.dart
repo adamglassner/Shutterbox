@@ -1,18 +1,26 @@
+import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../actions.dart';
 import '../app.dart';
 import '../biometrics.dart';
 import '../files_access.dart';
 import '../models.dart';
+import '../native.dart';
+import '../settings.dart';
 import '../theme.dart';
 import '../vault/vault.dart';
 import '../widgets.dart';
+import 'camera_capture.dart';
 import 'viewer.dart';
 
-/// The Locked album: set it up, unlock it, and see what's in it (with its own albums).
+/// The Locked album: set it up, unlock it, and see what's in it (with its own albums, some with their own PIN).
 class LockedTab extends StatefulWidget {
   const LockedTab({super.key, required this.selection, required this.nav});
   final Selection selection;
@@ -25,6 +33,59 @@ class LockedTab extends StatefulWidget {
 class _LockedTabState extends State<LockedTab> {
   /// The album inside the Locked album being shown (null: All).
   String? _albumId;
+  bool _searching = false;
+  final _query = TextEditingController();
+  bool _warningsSeen = false;
+
+  @override
+  void dispose() {
+    _query.dispose();
+    super.dispose();
+  }
+
+  Future<void> _albumMenu(String v, VaultAlbum? album, List<Item> items) async {
+    final app = AppScope.read(context);
+    final vault = app.vault;
+    switch (v) {
+      case 'new':
+        final a = await LockedActions.newAlbum(context);
+        if (a != null) setState(() => _albumId = a.id);
+      case 'rename':
+        final name = await askText(context, 'Rename album', initial: album!.name, action: 'Rename');
+        if (name != null) await vault.renameAlbum(album, name);
+      case 'delete':
+        final a1 = album!;
+        if (!a1.isProtected || a1.isOpen) {
+          final what = a1.isProtected ? 'Its items go back into the Locked album.' : 'Its items stay in the Locked album.';
+          if (await confirm(context, 'Delete "${a1.name}"?', 'Only the album is deleted. $what', action: 'Delete', danger: true)) {
+            await vault.deleteAlbum(a1);
+            setState(() => _albumId = null);
+          }
+        }
+      case 'protect':
+        await LockedActions.protectAlbum(context, album!);
+      case 'changepin':
+        final a2 = album!;
+        final r = await showDialog<(String, String)>(context: context, builder: (_) => SecretDialog(title: 'New PIN or password for "${a2.name}"', kind: a2.protection!.kind));
+        if (r != null) {
+          await vault.changeAlbumSecret(a2, r.$1, r.$2);
+          if (mounted) toast(context, 'Changed');
+        }
+      case 'unprotect':
+        final a3 = album!;
+        if (await confirm(context, 'Take the PIN off "${a3.name}"?', 'Its items are re-encrypted with the Locked album\'s key and open whenever the Locked album does.', action: 'Take it off')) {
+          if (!mounted) return;
+          await withProgress(context, 'Moving items', (_) => vault.unprotectAlbum(a3));
+        }
+      case 'lockalbum':
+        vault.lockAlbum(album!);
+        app.forgetPictures();
+      case 'show':
+        await Actions2.slideshow(context, items);
+      case 'guesses':
+        await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const WrongGuessesScreen()));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,74 +93,91 @@ class _LockedTabState extends State<LockedTab> {
     final vault = app.vault;
     final p = Palette.of(context);
     return ListenableBuilder(
-      listenable: Listenable.merge([vault, widget.selection]),
+      listenable: Listenable.merge([vault, widget.selection, _query]),
       builder: (context, _) {
         if (!vault.isSetUp) {
           return Scaffold(appBar: AppBar(title: const Text('Locked album')), body: const LockedIntro(), bottomNavigationBar: widget.nav);
         }
         if (!vault.isUnlocked) {
-          return Scaffold(
-            appBar: AppBar(title: const Text('Locked album')),
-            body: UnlockView(onUnlocked: () {}),
-            bottomNavigationBar: widget.nav,
-          );
+          _warningsSeen = false;
+          return Scaffold(appBar: AppBar(title: const Text('Locked album')), body: UnlockView(onUnlocked: () {}), bottomNavigationBar: widget.nav);
         }
         final album = vault.album(_albumId);
-        if (_albumId != null && album == null) _albumId = null;
-        final items = (album == null ? vault.items : vault.itemsIn(album))..sort((a, b) => b.taken.compareTo(a.taken));
+        if (_albumId != null && (album == null || album.deleted)) _albumId = null;
+        final all = (album == null ? vault.items : vault.itemsIn(album)).toList()..sort((a, b) => b.taken.compareTo(a.taken));
+        final items = _searching && _query.text.trim().isNotEmpty ? vault.search(_query.text, all) : all;
         final sel = widget.selection;
+        final albumLocked = album != null && album.isProtected && !album.isOpen;
+        final warnings = _warningsSeen ? const <FailedAttempt>[] : vault.lastUnlockWarnings;
         return Scaffold(
           appBar: AppBar(
-            title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Locked album'),
-              Text(vault.isBusy ? 'Working…' : '${vault.count} ${vault.count == 1 ? 'item' : 'items'}, encrypted',
-                  style: TextStyle(fontSize: 12.5, color: p.text3, fontWeight: FontWeight.w400)),
-            ]),
+            title: _searching
+                ? TextField(
+                    controller: _query,
+                    autofocus: true,
+                    decoration: const InputDecoration(hintText: 'Search the Locked album', filled: false, border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none),
+                  )
+                : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Text('Locked album'),
+                    Text(vault.isBusy ? 'Working…' : '${vault.count} ${vault.count == 1 ? 'item' : 'items'}, encrypted',
+                        style: TextStyle(fontSize: 12.5, color: p.text3, fontWeight: FontWeight.w400)),
+                  ]),
             actions: [
               IconButton(
-                tooltip: 'Select',
-                isSelected: sel.active,
-                icon: const Icon(Icons.check_circle_outline),
-                selectedIcon: Icon(Icons.check_circle, color: p.accent),
-                onPressed: () => sel.active ? sel.clear() : sel.mode = true,
+                tooltip: _searching ? 'Close search' : 'Search',
+                icon: Icon(_searching ? Icons.close : Icons.search),
+                onPressed: () => setState(() {
+                  _searching = !_searching;
+                  _query.clear();
+                }),
               ),
-              IconButton(tooltip: 'Lock now', icon: const Icon(Icons.lock_outline), onPressed: vault.lock),
+              if (!_searching)
+                IconButton(
+                  tooltip: 'Select',
+                  isSelected: sel.active,
+                  icon: const Icon(Icons.check_circle_outline),
+                  selectedIcon: Icon(Icons.check_circle, color: p.accent),
+                  onPressed: () => sel.active ? sel.clear() : sel.mode = true,
+                ),
+              IconButton(tooltip: 'Lock now and go to Photos', icon: const Icon(Icons.lock_outline), onPressed: app.panicLock),
               PopupMenuButton<String>(
-                onSelected: (v) async {
-                  switch (v) {
-                    case 'new':
-                      final a = await LockedActions.newAlbum(context);
-                      if (a != null) setState(() => _albumId = a.id);
-                    case 'rename':
-                      final name = await askText(context, 'Rename album', initial: album!.name, action: 'Rename');
-                      if (name != null) await vault.renameAlbum(album, name);
-                    case 'delete':
-                      if (await confirm(context, 'Delete "${album!.name}"?', 'Only the album is deleted. Its items stay in the Locked album.', action: 'Delete', danger: true)) {
-                        await vault.deleteAlbum(album);
-                        setState(() => _albumId = null);
-                      }
-                    case 'show':
-                      if (context.mounted) await Actions2.slideshow(context, items);
-                  }
-                },
+                onSelected: (v) => _albumMenu(v, album, items),
                 itemBuilder: (_) => [
                   const PopupMenuItem(value: 'new', child: ListTile(leading: Icon(Icons.create_new_folder_outlined), title: Text('New album'))),
                   if (album != null) ...[
-                    const PopupMenuItem(value: 'rename', child: ListTile(leading: Icon(Icons.edit_outlined), title: Text('Rename album'))),
-                    const PopupMenuItem(value: 'delete', child: ListTile(leading: Icon(Icons.delete_outline), title: Text('Delete album'))),
+                    if (!albumLocked) const PopupMenuItem(value: 'rename', child: ListTile(leading: Icon(Icons.edit_outlined), title: Text('Rename album'))),
+                    if (!album.isProtected) const PopupMenuItem(value: 'protect', child: ListTile(leading: Icon(Icons.pin_outlined), title: Text('Give it its own PIN'))),
+                    if (album.isProtected && album.isOpen) ...[
+                      const PopupMenuItem(value: 'lockalbum', child: ListTile(leading: Icon(Icons.lock_outline), title: Text('Lock this album'))),
+                      const PopupMenuItem(value: 'changepin', child: ListTile(leading: Icon(Icons.password), title: Text('Change its PIN'))),
+                      const PopupMenuItem(value: 'unprotect', child: ListTile(leading: Icon(Icons.no_encryption_outlined), title: Text('Take its PIN off'))),
+                    ],
+                    if (!albumLocked) const PopupMenuItem(value: 'delete', child: ListTile(leading: Icon(Icons.delete_outline), title: Text('Delete album'))),
                   ],
                   const PopupMenuItem(value: 'show', child: ListTile(leading: Icon(Icons.slideshow_outlined), title: Text('Slideshow'))),
+                  const PopupMenuItem(value: 'guesses', child: ListTile(leading: Icon(Icons.gpp_maybe_outlined), title: Text('Wrong guesses'))),
                 ],
               ),
             ],
           ),
           body: Column(children: [
+            if (warnings.isNotEmpty)
+              _WarningBanner(
+                attempts: warnings,
+                onSee: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const WrongGuessesScreen())),
+                onDismiss: () => setState(() => _warningsSeen = true),
+              ),
             SizedBox(
               height: 48,
               child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 12), children: [
                 _AlbumChip(label: 'All (${vault.count})', selected: album == null, onTap: () => setState(() => _albumId = null)),
                 for (final a in vault.albums)
-                  _AlbumChip(label: '${a.name} (${vault.itemsIn(a).length})', selected: a.id == _albumId, onTap: () => setState(() => _albumId = a.id)),
+                  _AlbumChip(
+                    label: a.isProtected && !a.isOpen ? a.name : '${a.name} (${vault.itemsIn(a).length})',
+                    icon: a.isProtected ? (a.isOpen ? Icons.lock_open : Icons.lock) : null,
+                    selected: a.id == _albumId,
+                    onTap: () => setState(() => _albumId = a.id),
+                  ),
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 6),
                   child: ActionChip(
@@ -115,20 +193,33 @@ class _LockedTabState extends State<LockedTab> {
             ),
             if (vault.isBusy) const LinearProgressIndicator(minHeight: 2),
             Expanded(
-              child: MediaGrid(
-                items: items,
-                selection: sel,
-                onOpen: (i, all) => ViewerScreen.open(context, all, i, lockedAlbum: album),
-                empty: EmptyState(
-                  icon: Icons.lock_outline,
-                  title: album == null ? 'Nothing locked yet' : '${album.name} is empty',
-                  body: album == null
-                      ? 'In Photos or Videos, select what you want to keep private and choose Lock. Copy keeps your originals; Move deletes them once they\'re safely encrypted.'
-                      : 'Select items in All and choose Album to add them here.',
-                ),
-              ),
+              child: albumLocked
+                  ? AlbumUnlockView(album: album)
+                  : MediaGrid(
+                      items: items,
+                      selection: sel,
+                      onOpen: (i, list) => ViewerScreen.open(context, list, i, lockedAlbum: album),
+                      empty: EmptyState(
+                        icon: _searching ? Icons.search_off : Icons.lock_outline,
+                        title: _searching ? 'Nothing found' : (album == null ? 'Nothing locked yet' : '${album.name} is empty'),
+                        body: _searching
+                            ? 'Search looks at names, captions, tags, cameras, albums, months and years.'
+                            : album == null
+                                ? 'In Photos or Videos, select what you want to keep private and choose Lock. Or take photos straight into it with the camera button, or share them to "Lock with Shutterbox" from another app.'
+                                : album.isProtected
+                                    ? 'Select items in All and choose Album to move them in here. They\'re re-encrypted with this album\'s own key.'
+                                    : 'Select items in All and choose Album to add them here.',
+                      ),
+                    ),
             ),
           ]),
+          floatingActionButton: albumLocked || sel.active || !isAndroid
+              ? null
+              : FloatingActionButton(
+                  tooltip: 'Take photos into the Locked album',
+                  onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => LockedCameraScreen(albumId: album?.id))),
+                  child: const Icon(Icons.photo_camera_outlined),
+                ),
           bottomNavigationBar: sel.active ? SelectionBar(selection: sel, all: items, actions: _actions(items, album)) : widget.nav,
         );
       },
@@ -151,28 +242,7 @@ class _LockedTabState extends State<LockedTab> {
               },
       ),
       ActionButton(icon: Icons.library_add_outlined, label: 'Album', onPressed: none ? null : () => LockedActions.addToAlbum(context, s())),
-      if (album != null)
-        ActionButton(
-          icon: Icons.remove_circle_outline,
-          label: 'Remove',
-          onPressed: none
-              ? null
-              : () async {
-                  await app.vault.removeFromAlbum(album, s());
-                  sel.clear();
-                },
-        ),
-      ActionButton(
-        icon: Icons.rotate_right,
-        label: 'Rotate',
-        onPressed: none
-            ? null
-            : () async {
-                for (final i in s()) {
-                  await app.vault.rotate(i, 90);
-                }
-              },
-      ),
+      ActionButton(icon: Icons.share_outlined, label: 'Share', onPressed: none ? null : () => LockedActions.share(context, s())),
       ActionButton(
         icon: Icons.delete_outline,
         label: 'Delete',
@@ -182,20 +252,288 @@ class _LockedTabState extends State<LockedTab> {
                 if (await LockedActions.delete(context, s())) sel.clear();
               },
       ),
+      PopupMenuButton<String>(
+        tooltip: 'More',
+        enabled: !none,
+        onSelected: (v) async {
+          final list = s();
+          switch (v) {
+            case 'remove':
+              await app.vault.removeFromAlbum(album!, list);
+              sel.clear();
+            case 'fav':
+              final make = !list.every((i) => i.favorite);
+              for (final i in list) {
+                await app.vault.setDetails(i, favorite: make);
+              }
+            case 'rotate':
+              for (final i in list) {
+                await app.vault.rotate(i, 90);
+              }
+            case 'show':
+              if (mounted) await Actions2.slideshow(context, list);
+          }
+        },
+        itemBuilder: (_) => [
+          if (album != null)
+            PopupMenuItem(value: 'remove', child: ListTile(leading: const Icon(Icons.remove_circle_outline), title: Text(album.isProtected ? 'Move out of this album' : 'Remove from album'))),
+          const PopupMenuItem(value: 'fav', child: ListTile(leading: Icon(Icons.favorite_border), title: Text('Favorite'))),
+          const PopupMenuItem(value: 'rotate', child: ListTile(leading: Icon(Icons.rotate_right), title: Text('Rotate'))),
+          const PopupMenuItem(value: 'show', child: ListTile(leading: Icon(Icons.slideshow_outlined), title: Text('Slideshow'))),
+        ],
+        child: ActionButton(icon: Icons.more_horiz, label: 'More', onPressed: null, passive: !none),
+      ),
     ];
   }
 }
 
 class _AlbumChip extends StatelessWidget {
-  const _AlbumChip({required this.label, required this.selected, required this.onTap});
+  const _AlbumChip({required this.label, required this.selected, required this.onTap, this.icon});
   final String label;
   final bool selected;
   final VoidCallback onTap;
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(right: 8, top: 6, bottom: 6),
-        child: ChoiceChip(label: Text(label), selected: selected, onSelected: (_) => onTap(), showCheckmark: false),
+        child: ChoiceChip(
+          avatar: icon == null ? null : Icon(icon, size: 16),
+          label: Text(label),
+          selected: selected,
+          onSelected: (_) => onTap(),
+          showCheckmark: false,
+        ),
+      );
+}
+
+/// "2 wrong PINs since you last opened it": shown once after unlocking.
+class _WarningBanner extends StatelessWidget {
+  const _WarningBanner({required this.attempts, required this.onSee, required this.onDismiss});
+  final List<FailedAttempt> attempts;
+  final VoidCallback onSee, onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Palette.of(context);
+    final last = attempts.first;
+    final n = attempts.length;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+      padding: const EdgeInsets.fromLTRB(14, 10, 4, 10),
+      decoration: BoxDecoration(color: p.danger.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(12)),
+      child: Row(children: [
+        Icon(Icons.gpp_maybe_outlined, color: p.danger),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            '$n wrong ${n == 1 ? 'guess' : 'guesses'} since you last opened it. The last: ${formatDay(last.time)}, ${formatTime(last.time)} on ${last.device}.',
+            style: TextStyle(color: p.text),
+          ),
+        ),
+        TextButton(onPressed: onSee, child: const Text('See')),
+        IconButton(tooltip: 'Dismiss', onPressed: onDismiss, icon: const Icon(Icons.close, size: 20)),
+      ]),
+    );
+  }
+}
+
+/// A protected album: its own PIN or password.
+class AlbumUnlockView extends StatefulWidget {
+  const AlbumUnlockView({super.key, required this.album});
+  final VaultAlbum album;
+
+  @override
+  State<AlbumUnlockView> createState() => _AlbumUnlockViewState();
+}
+
+class _AlbumUnlockViewState extends State<AlbumUnlockView> {
+  final _secret = TextEditingController();
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _secret.dispose();
+    super.dispose();
+  }
+
+  Future<void> _go() async {
+    if (_secret.text.isEmpty) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    final ok = await AppScope.read(context).vault.unlockAlbum(widget.album, _secret.text);
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      if (!ok) _error = 'That isn\'t right.';
+    });
+    if (ok) _secret.clear();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Palette.of(context);
+    final pin = widget.album.protection?.kind != 'Password';
+    return ListView(padding: const EdgeInsets.fromLTRB(28, 32, 28, 32), children: [
+      Center(child: Icon(Icons.lock, size: 46, color: p.accent)),
+      const SizedBox(height: 12),
+      Text('"${widget.album.name}" has its own ${pin ? 'PIN' : 'password'}', textAlign: TextAlign.center, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: p.text)),
+      const SizedBox(height: 18),
+      TextField(
+        controller: _secret,
+        obscureText: true,
+        enabled: !_busy,
+        keyboardType: pin ? TextInputType.number : TextInputType.visiblePassword,
+        inputFormatters: pin ? [FilteringTextInputFormatter.digitsOnly] : null,
+        textAlign: TextAlign.center,
+        style: TextStyle(fontSize: 20, letterSpacing: pin ? 6 : 1, color: p.text),
+        decoration: InputDecoration(hintText: pin ? 'Album PIN' : 'Album password', errorText: _error),
+        onSubmitted: (_) => _go(),
+      ),
+      const SizedBox(height: 14),
+      FilledButton(onPressed: _busy ? null : _go, child: _busy ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.4)) : const Text('Open album')),
+    ]);
+  }
+}
+
+/// Every wrong guess (from all devices) and the photos taken of them.
+class WrongGuessesScreen extends StatelessWidget {
+  const WrongGuessesScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final app = AppScope.of(context);
+    final vault = app.vault;
+    final p = Palette.of(context);
+    return ListenableBuilder(
+      listenable: vault,
+      builder: (context, _) {
+        final attempts = vault.failedAttempts;
+        final photos = vault.isUnlocked ? vault.intruderPhotos : const <IntruderPhoto>[];
+        return Scaffold(
+          appBar: AppBar(title: const Text('Wrong guesses')),
+          body: ListView(padding: const EdgeInsets.only(bottom: 32), children: [
+            if (photos.isNotEmpty) ...[
+              const SectionTitle('Photos of wrong guesses'),
+              SizedBox(
+                height: 150,
+                child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 12), children: [
+                  for (final ph in photos)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 10),
+                      child: GestureDetector(
+                        onLongPress: () async {
+                          if (await confirm(context, 'Delete this photo?', 'It\'s deleted for good.', action: 'Delete', danger: true)) await vault.deleteIntruderPhoto(ph);
+                        },
+                        child: Column(children: [
+                          FutureBuilder<Uint8List>(
+                            future: vault.readIntruderPhoto(ph),
+                            builder: (_, s) => ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: SizedBox(
+                                width: 100,
+                                height: 120,
+                                child: s.hasData ? Image.memory(s.data!, fit: BoxFit.cover) : ColoredBox(color: p.tile),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(ph.time == null ? '' : '${shortMonth(ph.time!.month)} ${ph.time!.day}, ${formatTime(ph.time!)}', style: TextStyle(fontSize: 12, color: p.text3)),
+                        ]),
+                      ),
+                    ),
+                ]),
+              ),
+            ],
+            SectionTitle('Wrong PINs, passwords and recovery keys (${attempts.length})'),
+            if (attempts.isEmpty)
+              Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: Text('None. Every wrong guess on any device is listed here.', style: TextStyle(color: p.text2))),
+            for (final a in attempts)
+              ListTile(
+                leading: Icon(Icons.gpp_maybe_outlined, color: p.danger),
+                title: Text('Wrong ${a.what == 'Recovery key' ? 'recovery key' : a.what}'),
+                subtitle: Text('${formatDay(a.time)}, ${formatTime(a.time)} · ${a.device}'),
+              ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'After 5 wrong guesses in a row on this phone, Shutterbox makes you wait, longer each time. '
+                'What really protects the album is that each guess costs 600,000 rounds of PBKDF2, even for someone with a copy of the folder.',
+                style: TextStyle(color: p.text3, fontSize: 13, height: 1.4),
+              ),
+            ),
+          ]),
+        );
+      },
+    );
+  }
+}
+
+/// New PIN or password, twice.
+class SecretDialog extends StatefulWidget {
+  const SecretDialog({super.key, required this.title, this.kind = 'PIN', this.note});
+  final String title;
+  final String kind;
+  final String? note;
+
+  @override
+  State<SecretDialog> createState() => _SecretDialogState();
+}
+
+class _SecretDialogState extends State<SecretDialog> {
+  late String _kind = widget.kind;
+  final _a = TextEditingController(), _b = TextEditingController();
+  String? _error;
+
+  @override
+  void dispose() {
+    _a.dispose();
+    _b.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: Text(widget.title),
+        content: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            if (widget.note != null) Padding(padding: const EdgeInsets.only(bottom: 12), child: Text(widget.note!)),
+            SegmentedButton<String>(
+              segments: const [ButtonSegment(value: 'PIN', label: Text('PIN')), ButtonSegment(value: 'Password', label: Text('Password'))],
+              selected: {_kind},
+              onSelectionChanged: (v) => setState(() => _kind = v.first),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _a,
+              obscureText: true,
+              keyboardType: _kind == 'PIN' ? TextInputType.number : TextInputType.visiblePassword,
+              decoration: InputDecoration(labelText: _kind == 'PIN' ? 'PIN (4 to 12 digits)' : 'Password (6 or more)'),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _b,
+              obscureText: true,
+              keyboardType: _kind == 'PIN' ? TextInputType.number : TextInputType.visiblePassword,
+              decoration: InputDecoration(labelText: 'Type it again', errorText: _error),
+            ),
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () {
+              final problem = Vault.validate(_a.text, _kind);
+              if (problem != null) return setState(() => _error = problem);
+              if (_a.text != _b.text) return setState(() => _error = 'The two don\'t match.');
+              Navigator.pop(context, (_a.text, _kind));
+            },
+            child: const Text('OK'),
+          ),
+        ],
       );
 }
 
@@ -265,6 +603,9 @@ class _UnlockViewState extends State<UnlockView> {
   void initState() {
     super.initState();
     final vault = AppScope.read(context).vault;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _ticking();
+    });
     Biometrics.hasKey(vault.identity).then((v) {
       if (mounted) setState(() => _bio = v);
     });
@@ -273,13 +614,36 @@ class _UnlockViewState extends State<UnlockView> {
   @override
   void dispose() {
     _secret.dispose();
+    _tick?.cancel();
     super.dispose();
   }
 
+  Timer? _tick;
+
+  void _ticking() {
+    if (_tick != null || _waitLeft == Duration.zero) return;
+    _tick = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted || _waitLeft == Duration.zero) {
+        t.cancel();
+        _tick = null;
+      }
+      if (mounted) setState(() {});
+    });
+  }
+
+  /// How long until another guess is allowed on this phone.
+  Duration get _waitLeft {
+    final until = DateTime.tryParse(AppScope.read(context).settings.waitUntil);
+    if (until == null) return Duration.zero;
+    final left = until.difference(DateTime.now());
+    return left.isNegative ? Duration.zero : left;
+  }
+
   Future<void> _unlock() async {
-    final vault = AppScope.read(context).vault;
+    final app = AppScope.read(context);
+    final vault = app.vault;
     final s = _secret.text;
-    if (s.isEmpty) return;
+    if (s.isEmpty || _waitLeft > Duration.zero) return;
     setState(() {
       _busy = true;
       _error = null;
@@ -288,14 +652,28 @@ class _UnlockViewState extends State<UnlockView> {
     if (!mounted) return;
     setState(() => _busy = false);
     if (ok) {
+      app.settings.update((x) => x
+        ..wrongInARow = 0
+        ..waitUntil = '');
       _secret.clear();
       widget.onUnlocked();
       if (_recovery) {
         toast(context, 'Unlocked with your recovery key. You can set a new PIN or password in Settings.');
       }
     } else {
+      final wrong = app.settings.wrongInARow + 1;
+      final wait = Settings.waitAfter(wrong);
+      app.settings.update((x) => x
+        ..wrongInARow = wrong
+        ..waitUntil = wait == Duration.zero ? '' : DateTime.now().add(wait).toIso8601String());
       final kind = vault.info?.kind == 'Password' ? 'password' : 'PIN';
       setState(() => _error = _recovery ? 'That recovery key doesn\'t open this album.' : 'That $kind isn\'t right.');
+      _ticking();
+      if (vault.photographsWrongGuesses && isAndroid) {
+        takeQuietPhoto().then((jpeg) {
+          if (jpeg != null) vault.saveIntruderPhoto(jpeg);
+        });
+      }
     }
   }
 
@@ -343,8 +721,13 @@ class _UnlockViewState extends State<UnlockView> {
         onSubmitted: (_) => _unlock(),
       ),
       const SizedBox(height: 14),
+      if (_waitLeft > Duration.zero)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Text('Too many wrong guesses. Try again in ${formatDuration(_waitLeft.inSeconds.toDouble())}.', textAlign: TextAlign.center, style: TextStyle(color: p.danger)),
+        ),
       FilledButton(
-        onPressed: _busy ? null : _unlock,
+        onPressed: _busy || _waitLeft > Duration.zero ? null : _unlock,
         child: _busy
             ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.4))
             : const Text('Unlock'),
@@ -559,16 +942,95 @@ class LockedActions {
               child: Text('Add to an album in the Locked album', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: p.text)),
             ),
             ListTile(leading: Icon(Icons.add, color: p.accent), title: const Text('New album…'), onTap: () => Navigator.pop(ctx, '+new')),
-            for (final a in vault.albums) ListTile(leading: const Icon(Icons.photo_album_outlined), title: Text(a.name), onTap: () => Navigator.pop(ctx, a.id)),
+            for (final a in vault.albums.where((a) => !a.isProtected || a.isOpen))
+              ListTile(
+                leading: Icon(a.isProtected ? Icons.lock_open : Icons.photo_album_outlined),
+                title: Text(a.name),
+                subtitle: a.isProtected ? const Text('Has its own PIN: items are moved in') : null,
+                onTap: () => Navigator.pop(ctx, a.id),
+              ),
           ]),
         ),
       ),
     );
     if (pick == null || !context.mounted) return;
     final album = pick == '+new' ? await newAlbum(context) : vault.album(pick);
-    if (album == null) return;
-    final n = await vault.addToAlbum(album, items);
-    if (context.mounted) toast(context, n == 0 ? 'Already in ${album.name}' : 'Added $n to ${album.name}');
+    if (album == null || !context.mounted) return;
+    final list = items.where((i) => i.protectedIn == null).toList();
+    final n = album.isProtected ? await withProgress(context, 'Moving into ${album.name}', (_) => vault.addToAlbum(album, list)) : await vault.addToAlbum(album, list);
+    if (context.mounted) toast(context, n == 0 ? 'Already in ${album.name}' : '${album.isProtected ? 'Moved' : 'Added'} $n to ${album.name}');
+  }
+
+  /// Shares for a moment: decrypted copies are made for the share and deleted when Shutterbox locks or restarts.
+  static Future<void> share(BuildContext context, List<Item> items) async {
+    final app = AppScope.read(context);
+    if (!await confirm(context, 'Share ${items.length == 1 ? 'it' : '${items.length} items'}?',
+        'Shutterbox makes temporary decrypted copies for the app you share to, and deletes them when the Locked album locks. The app you share with keeps what it receives.',
+        action: 'Share')) {
+      return;
+    }
+    try {
+      final files = await app.vault.decryptToShare(items);
+      app.expectReturn();
+      await SharePlus.instance.share(ShareParams(files: [for (final f in files) XFile(f.path)]));
+    } catch (e) {
+      if (context.mounted) toast(context, 'Couldn\'t share ($e).');
+    }
+  }
+
+  /// Gives an album its own PIN or password.
+  static Future<void> protectAlbum(BuildContext context, VaultAlbum album) async {
+    final vault = AppScope.read(context).vault;
+    final r = await showDialog<(String, String)>(
+      context: context,
+      builder: (_) => SecretDialog(
+        title: 'A PIN for "${album.name}"',
+        note: 'Its items are re-encrypted with a key only this PIN or password opens, as well as needing the Locked album unlocked. '
+            'If you forget it, they can\'t be recovered: the recovery key doesn\'t open it.',
+      ),
+    );
+    if (r == null || !context.mounted) return;
+    await withProgress(context, 'Encrypting "${album.name}"', (_) => vault.protectAlbum(album, r.$1, r.$2));
+    if (context.mounted) toast(context, '"${album.name}" now has its own ${r.$2 == 'PIN' ? 'PIN' : 'password'}');
+  }
+
+  /// Items another app shared to "Lock with Shutterbox": copied into the Locked album (the other app's copy stays).
+  static Future<void> lockShared(BuildContext context, List<SharedFile> files) async {
+    final app = AppScope.read(context);
+    try {
+      final media = files.where((f) => Item.isVideoName(f.name) || Item.photoExtensions.contains(Item.extension(f.name)) || f.mime.startsWith('image/') || f.mime.startsWith('video/')).toList();
+      if (media.isEmpty) return;
+      if (!await confirm(context, 'Lock ${media.length == 1 ? 'this' : '${media.length} items'} with Shutterbox?',
+          'Shutterbox puts an encrypted copy in the Locked album. The app you shared from keeps its own copy: delete it there if you want it gone.',
+          action: 'Lock')) {
+        return;
+      }
+      if (!context.mounted || !await LockedGate.ensureUnlocked(context) || !context.mounted) return;
+      final sources = <LockSource>[];
+      for (final f in media) {
+        final taken = dateFromName(f.name) ?? await f.file.lastModified();
+        final isPhoto = !Item.isVideoName(f.name) && !f.mime.startsWith('video/');
+        sources.add(LockSource(
+          item: Item(id: 'shared-${f.name}', name: f.name, taken: taken, isVideo: !isPhoto),
+          file: f.file,
+          thumbnail: isPhoto ? () async => smallPicture(await f.file.readAsBytes()) : null,
+        ));
+      }
+      final r = await withProgress(context, 'Locking', (report) => app.vault.add(sources, progress: report));
+      if (context.mounted) {
+        toast(context, [
+          if (r.added > 0) 'Locked ${r.added}',
+          if (r.skipped > 0) '${r.skipped} already in the Locked album',
+          if (r.errors.isNotEmpty) '${r.errors.length} couldn\'t be locked: ${r.errors.first}',
+        ].join('. '));
+      }
+    } finally {
+      for (final f in files) {
+        try {
+          await f.file.delete();
+        } catch (_) {}
+      }
+    }
   }
 
   /// Decrypts items back into your gallery (DCIM/Shutterbox/Restored) and takes them out of the Locked album.
@@ -636,6 +1098,7 @@ class LockedActions {
             action: 'Choose folder')) {
       return;
     }
+    AppScope.read(context).expectReturn();
     final dir = await FilePicker.platform.getDirectoryPath(dialogTitle: 'Choose the "Shutterbox Locked album" folder');
     if (dir == null || !context.mounted) return;
     final previousBio = app.vault.identity;
@@ -650,6 +1113,7 @@ class LockedActions {
   static Future<void> moveTo(BuildContext context) async {
     final app = AppScope.read(context);
     if (!await FilesAccess.ensure(context, 'To move the Locked album to a folder you choose, Shutterbox needs to write there.')) return;
+    AppScope.read(context).expectReturn();
     final dir = await FilePicker.platform.getDirectoryPath(dialogTitle: 'Choose where to put the Locked album');
     if (dir == null || !context.mounted) return;
     final e = await withProgress(context, 'Moving the Locked album', (report) => app.vault.moveTo(dir, progress: report));

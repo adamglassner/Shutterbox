@@ -16,6 +16,7 @@ import 'package:shutterbox/screens/albums.dart';
 import 'package:shutterbox/screens/details.dart';
 import 'package:shutterbox/screens/home.dart';
 import 'package:shutterbox/screens/import.dart';
+import 'package:shutterbox/screens/locked.dart';
 import 'package:shutterbox/screens/search.dart';
 import 'package:shutterbox/screens/settings_screen.dart';
 import 'package:shutterbox/screens/viewer.dart';
@@ -51,13 +52,20 @@ void main() {
     final source = FakeSource();
     final root = Directory.systemTemp.createTempSync('sb-shots-');
     lockedFolder = '${root.path}/Locked';
-    final v = Vault(lockedFolder, tempFolder: '${root.path}/tmp');
+    final v = Vault(lockedFolder, tempFolder: '${root.path}/tmp', deviceId: 'pc', deviceName: 'Desktop PC');
     await v.setUp('2468', 'PIN');
     final items = source.sample(count: 14).where((i) => !i.isVideo).toList();
     final family = await v.createAlbum('Family');
     await v.add([for (final i in items.take(9)) LockSource(item: i, file: (await source.file(i))!, thumbnail: () => source.thumbnailJpeg(i))], albumId: family.id);
     await v.createAlbum('Documents');
+    final vp = await v.createAlbum('Very private');
+    await v.protectAlbum(vp, '9999', 'PIN');
+    v.lockAlbum(vp);
+    final first = v.items.first;
+    await v.setDetails(first, caption: 'Sunset from the pier', tags: ['Beach'], favorite: true);
     lockedKey = v.copyKey()!;
+    await v.recordFailure('PIN');
+    await v.recordFailure('PIN');
   });
 
   Future<void> shot(
@@ -163,4 +171,10 @@ void main() {
   testWidgets('import', (t) => shot(t, '16-import', then: (c, app) async => push(c, const ImportScreen())));
   testWidgets('folders', (t) => shot(t, '17-folders', tab: 2, then: (c, app) async => push(c, const FoldersScreen())));
   testWidgets('albums light', (t) => shot(t, '18-albums-light', tab: 2, theme: 'light'));
+  testWidgets('wrong guesses', (t) => shot(t, '19-wrong-guesses', tab: 3, locked: true, unlocked: true, then: (c, app) async => push(c, const WrongGuessesScreen())));
+  testWidgets('settings locked', (t) => shot(t, '20-settings-locked', locked: true, then: (c, app) async {
+        push(c, const SettingsScreen());
+        await t.pumpAndSettle();
+        await t.scrollUntilVisible(find.text('Photograph wrong guesses'), 300, scrollable: find.byType(Scrollable).last);
+      }));
 }

@@ -7,6 +7,7 @@ import 'package:crypto/crypto.dart' as hash;
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shutterbox/models.dart';
+import 'package:shutterbox/vault/intruder.dart';
 import 'package:shutterbox/vault/sbox.dart';
 import 'package:shutterbox/vault/vault.dart';
 
@@ -184,6 +185,101 @@ void main() {
     });
   });
 
+  group('a 0.4.0 album (records, sync conflicts, a protected album, wrong guesses)', () {
+    late Directory dir;
+    late Map<String, dynamic> expected;
+    setUp(() {
+      dir = Directory.systemTemp.createTempSync('sb-v4-');
+      final from = Directory('test/fixtures/vault4');
+      for (final e in from.listSync(recursive: true).whereType<File>()) {
+        final dest = File('${dir.path}/${e.path.substring(from.path.length + 1)}');
+        dest.parent.createSync(recursive: true);
+        e.copySync(dest.path);
+      }
+      expected = jsonDecode(File('${dir.path}/expected4.json').readAsStringSync()) as Map<String, dynamic>;
+    });
+
+    test('merges records, conflict copies, deletions and the old index', () async {
+      final v = Vault(dir.path, deviceId: 'phone-test', deviceName: 'Test phone');
+      expect(v.identity, '0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f');
+      expect(await v.unlock('2468'), isTrue);
+      final names = v.items.map((i) => i.name).toSet();
+      expect(names, {'IMG_2041.jpg', 'Beach day.mp4', 'empty.gif'}); // exact.png was deleted elsewhere; empty.gif came from the old index
+      final photo = v.items.firstWhere((i) => i.name == 'IMG_2041.jpg');
+      expect(photo.caption, 'Sunrise at the coast'); // the newer record beat its conflict copy
+      expect(photo.tags, ['Beach', 'Trip']);
+      expect(photo.favorite, isTrue);
+      final video = v.items.firstWhere((i) => i.isVideo);
+      expect(video.rotation, 180); // the newer conflict copy won
+      final albums = v.albums.map((a) => a.name).toList();
+      expect(albums, ['Private stuff', 'Very private']); // "Gone" was deleted
+      final ps = v.albums.firstWhere((a) => a.name == 'Private stuff');
+      expect(v.itemsIn(ps).map((i) => i.name).toSet(), {'IMG_2041.jpg', 'Beach day.mp4'});
+      expect(v.coverOf(ps)?.name, 'Beach day.mp4');
+      expect(v.search('beach trip', v.items).single.name, 'IMG_2041.jpg');
+      expect(v.search('private stuff', v.items).length, 2);
+      // the wrong guess after the last unlock was shown
+      expect(v.lastUnlockWarnings.length, 1);
+      expect(v.lastUnlockWarnings.single.device, 'Desktop PC');
+      // tidied: conflict copies gone, every record under its own name
+      final recordNames = Directory('${dir.path}/records').listSync().map((f) => f.uri.pathSegments.last).toList();
+      expect(recordNames.every((n) => RegExp(r'^[0-9a-f]{32}\.sbox$').hasMatch(n)), isTrue, reason: '$recordNames');
+      // the protected album
+      final vp = v.albums.firstWhere((a) => a.name == 'Very private');
+      expect(vp.isProtected, isTrue);
+      expect(v.itemsIn(vp), isEmpty);
+      expect(await v.unlockAlbum(vp, '9999'), isTrue);
+      final secret = v.itemsIn(vp).single;
+      expect(hash.sha256.convert(await v.readBytes(secret.vaultId!, vp.id)).toString(), expected['secret']);
+      // the photographed wrong guess
+      final shot = v.intruderPhotos.single;
+      expect(shot.time, DateTime.utc(2026, 11, 24, 2, 14).toLocal());
+      expect(hash.sha256.convert(await v.readIntruderPhoto(shot)).toString(), expected['intruder']);
+    });
+
+    test('two devices: changes to different items both survive', () async {
+      final a = Vault(dir.path), b = Vault(dir.path);
+      expect(await a.unlock('2468'), isTrue);
+      expect(await b.unlock('2468'), isTrue);
+      final ap = a.items.firstWhere((i) => i.name == 'IMG_2041.jpg');
+      final bv = b.items.firstWhere((i) => i.isVideo);
+      await a.setDetails(ap, caption: 'from the phone');
+      await b.setDetails(bv, caption: 'from the PC');
+      await b.reload();
+      expect(b.items.firstWhere((i) => i.name == 'IMG_2041.jpg').caption, 'from the phone');
+      expect(b.items.firstWhere((i) => i.isVideo).caption, 'from the PC');
+      // a delete on one isn't undone by the other's stale view
+      await a.reload();
+      await a.remove([a.items.firstWhere((i) => i.name == 'empty.gif')]);
+      await b.setDetails(b.items.firstWhere((i) => i.isVideo), favorite: true);
+      final c = Vault(dir.path);
+      expect(await c.unlock('2468'), isTrue);
+      expect(c.items.map((i) => i.name), isNot(contains('empty.gif')));
+      expect(c.items.firstWhere((i) => i.isVideo).favorite, isTrue);
+    });
+
+    test('wrong guesses are logged per device; a new recovery key keeps the identity', () async {
+      final v = Vault(dir.path, deviceId: 'phone-x', deviceName: 'Phone X');
+      expect(await v.unlock('0000'), isFalse);
+      expect(await v.unlock('0000', log: false), isFalse);
+      expect(v.failedAttempts.where((a) => a.device == 'Phone X').length, 1);
+      expect(await v.unlock('2468'), isTrue);
+      expect(v.lastUnlockWarnings.length, 2);
+      final id = v.identity;
+      final key = await v.newRecoveryKey();
+      expect(v.identity, id);
+      v.lock();
+      expect(await v.unlockWithRecoveryKey('ABCDE-FGHJK-LMNPQ-RSTUV-WXYZ2'), isFalse);
+      expect(await v.unlockWithRecoveryKey(key), isTrue);
+    });
+  });
+
+  test('RSA-OAEP for photos of wrong guesses round trips', () async {
+    final pair = IntruderCrypto.generate();
+    final blob = await IntruderCrypto.seal(pair.$1, [1, 2, 3, 4, 5]);
+    expect(await IntruderCrypto.open(pair.$2, blob), [1, 2, 3, 4, 5]);
+  });
+
   test('set up here, add, move-check, restore, change PIN: and Windows can open it (tool/vault_ref.py check)', () async {
     final root = Directory.systemTemp.createTempSync('sb-new-');
     final dir = Directory('${root.path}/Locked');
@@ -251,6 +347,36 @@ void main() {
     v.lock();
     expect(await v.unlock('2468'), isTrue);
     expect(v.count, 2);
+
+    // an album with its own PIN, wrong guesses and a photo of one (tool/vault_ref.py check4 looks at these)
+    final vp = await v.createAlbum('Very private');
+    await v.addToAlbum(vp, [v.items.first]);
+    await v.protectAlbum(vp, '9999', 'PIN');
+    expect(v.count, 1);
+    expect(v.itemsIn(vp).length, 1);
+    v.lockAlbum(vp);
+    expect(v.itemsIn(vp), isEmpty);
+    expect(await v.unlockAlbum(vp, '1111'), isFalse);
+    expect(await v.unlockAlbum(vp, '9999'), isTrue);
+    final secretItem = v.itemsIn(vp).single;
+    expect(secretItem.protectedIn, vp.id);
+    expect((await v.readBytes(secretItem.vaultId!, vp.id)).length, secretItem.size);
+    await v.setDetails(secretItem, caption: 'only here', tags: ['x'], favorite: true);
+    await v.enableIntruderPhotos();
+    await v.saveIntruderPhoto(photos.first.readAsBytesSync());
+    expect(v.intruderPhotos.length, 1);
+    expect(await v.readIntruderPhoto(v.intruderPhotos.first), photos.first.readAsBytesSync());
+    expect(v.failedAttempts.where((a) => a.what == 'Album PIN').length, 1);
+    final checked = await v.check();
+    expect(checked.problems, isEmpty);
+    expect(checked.checked, 2);
+    // a 0.3.0 app sees only the main album's item
+    final idx = Vault.parseIndex(await Sbox.decryptBytes(File('${v.folder}/index.sbox').readAsBytesSync(), v.copyKey()!));
+    expect(idx.$1.length, 1);
+    expect(idx.$2.where((a) => a.name == 'Very private'), isEmpty);
+    v.lock();
+    expect(await v.unlock('2468'), isTrue);
+    expect(v.lastUnlockWarnings.map((a) => a.what), contains('Album PIN'));
 
     // for CI: tool/vault_ref.py checks Windows can open what the phone made
     final export = Platform.environment['SB_EXPORT'];

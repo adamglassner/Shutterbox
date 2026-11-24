@@ -234,6 +234,102 @@ class _SettingsScreenState extends State<SettingsScreen> {
           onChanged: (v) => vault.setAutoLock(v ?? 5),
         ),
       ),
+      SwitchListTile(
+        secondary: const Icon(Icons.screenshot_monitor_outlined),
+        title: const Text('Keep it out of screenshots'),
+        subtitle: const Text('While it\'s unlocked, screenshots and screen recordings come out black and the recent-apps preview is blank'),
+        value: app.settings.protectScreen,
+        onChanged: (v) => app.settings.update((x) => x.protectScreen = v),
+      ),
+      SwitchListTile(
+        secondary: const Icon(Icons.exit_to_app),
+        title: const Text('Lock as soon as I leave Shutterbox'),
+        subtitle: const Text('When you switch apps or the screen turns off'),
+        value: app.settings.lockOnLeave,
+        onChanged: (v) => app.settings.update((x) => x.lockOnLeave = v),
+      ),
+      SwitchListTile(
+        secondary: const Icon(Icons.flip_to_back),
+        title: const Text('Lock when I put the phone face down'),
+        subtitle: const Text('And go back to Photos. The lock button in the Locked album does the same.'),
+        value: app.settings.lockFaceDown,
+        onChanged: (v) => app.settings.update((x) => x.lockFaceDown = v),
+      ),
+      SwitchListTile(
+        secondary: const Icon(Icons.visibility_off_outlined),
+        title: const Text('Hide the Locked tab'),
+        subtitle: const Text('Open it by pressing and holding "Photos" at the top, or by typing your PIN or password in search'),
+        value: app.settings.hideLocked,
+        onChanged: (v) => app.settings.update((x) => x.hideLocked = v),
+      ),
+      SwitchListTile(
+        secondary: const Icon(Icons.no_photography_outlined),
+        title: const Text('Photograph wrong guesses'),
+        subtitle: const Text('The front camera takes a photo after a wrong PIN or password. It\'s encrypted: only someone who can unlock the album can see it.'),
+        value: vault.photographsWrongGuesses,
+        onChanged: (on) => needsUnlock(() async {
+          if (on) {
+            if (!context.mounted) return;
+            await withProgress(context, 'Making the key for the photos', (_) => vault.enableIntruderPhotos());
+          } else {
+            await vault.disableIntruderPhotos();
+          }
+        }),
+      ),
+      ListTile(
+        leading: const Icon(Icons.gpp_maybe_outlined),
+        title: const Text('Wrong guesses'),
+        subtitle: Text(_guessSummary(vault)),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const WrongGuessesScreen())),
+      ),
+      ListTile(
+        leading: const Icon(Icons.fact_check_outlined),
+        title: const Text('Check the album'),
+        subtitle: const Text('Makes sure every file is there and decrypts (after copying or syncing it)'),
+        onTap: () => needsUnlock(() async {
+          if (!context.mounted) return;
+          final r = await withProgress(context, 'Checking the Locked album', (report) => vault.check(progress: report));
+          if (!context.mounted) return;
+          await showDialog<void>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: Text(r.problems.isEmpty ? 'All good' : '${r.problems.length} ${r.problems.length == 1 ? 'problem' : 'problems'}'),
+              content: SingleChildScrollView(
+                child: Text(r.problems.isEmpty ? 'All ${r.checked} items are there and decrypt correctly.' : '${r.checked} items are fine.\n\n${r.problems.join('\n')}'),
+              ),
+              actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
+            ),
+          );
+        }),
+      ),
+      ListTile(
+        leading: const Icon(Icons.key_outlined),
+        title: const Text('Get a new recovery key'),
+        subtitle: const Text('The old one stops working'),
+        onTap: () => needsUnlock(() async {
+          if (!context.mounted) return;
+          if (!await confirm(context, 'Get a new recovery key?', 'Your current recovery key will stop working. Save the new one somewhere safe.', action: 'Continue')) return;
+          final key = await vault.newRecoveryKey();
+          if (!context.mounted) return;
+          await showDialog<void>(
+            context: context,
+            barrierDismissible: false,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Your new recovery key'),
+              content: Column(mainAxisSize: MainAxisSize.min, children: [
+                const Text('It\'s shown only now. Write it down or keep it in your password manager.'),
+                const SizedBox(height: 14),
+                SelectableText(key, style: const TextStyle(fontSize: 18, letterSpacing: 1.2, fontWeight: FontWeight.w600, fontFamily: 'monospace')),
+              ]),
+              actions: [
+                TextButton(onPressed: () => copyText(ctx, key, 'Recovery key'), child: const Text('Copy')),
+                FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('I\'ve saved it')),
+              ],
+            ),
+          );
+        }),
+      ),
       ListTile(
         leading: const Icon(Icons.drive_file_move_outline),
         title: const Text('Move to another folder'),
@@ -273,6 +369,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     ];
   }
+}
+
+String _guessSummary(Vault vault) {
+  final a = vault.failedAttempts;
+  if (a.isEmpty) return 'None so far';
+  return '${a.length} logged, the last ${formatDay(a.first.time)}, ${formatTime(a.first.time)}';
 }
 
 class _Labeled extends StatelessWidget {

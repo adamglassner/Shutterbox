@@ -5,6 +5,7 @@ import '../app.dart';
 import '../library.dart';
 import '../models.dart';
 import '../theme.dart';
+import '../vault/vault.dart';
 
 /// Date, camera, exposure, size, location (with a map link), folder, caption, tags and albums.
 class DetailsSheet extends StatefulWidget {
@@ -34,14 +35,31 @@ class _DetailsSheetState extends State<DetailsSheet> {
   late final TextEditingController _caption;
   final _tag = TextEditingController();
   late final Library _lib;
+  late final Vault _vault;
+
+  String _captionOf(Item i) => i.locked ? i.caption : _lib.metaOf(i).caption;
+  List<String> _tagsOf(Item i) => i.locked ? i.tags : _lib.metaOf(i).tags;
+
+  void _setCaption(Item i, String v) => i.locked ? _vault.setDetails(i, caption: v) : _lib.setCaption(i, v);
+
+  void _addTag(Item i, String v) {
+    final t = v.trim();
+    if (t.isEmpty) return;
+    if (!i.locked) return _lib.addTag(i, t);
+    if (i.tags.any((x) => x.toLowerCase() == t.toLowerCase())) return;
+    _vault.setDetails(i, tags: [...i.tags, t]);
+  }
+
+  void _removeTag(Item i, String t) => i.locked ? _vault.setDetails(i, tags: [...i.tags]..remove(t)) : _lib.removeTag(i, t);
 
   @override
   void initState() {
     super.initState();
     final app = AppScope.read(context);
     _lib = app.library;
+    _vault = app.vault;
     final i = widget.item;
-    _caption = TextEditingController(text: i.locked ? '' : app.library.metaOf(i).caption);
+    _caption = TextEditingController(text: _captionOf(i));
     _size = i.size;
     if (i.latitude != null && i.longitude != null) _location = (i.latitude!, i.longitude!);
     _load();
@@ -65,7 +83,7 @@ class _DetailsSheetState extends State<DetailsSheet> {
 
   @override
   void dispose() {
-    if (!widget.item.locked && _caption.text.trim() != _lib.metaOf(widget.item).caption) _lib.setCaption(widget.item, _caption.text);
+    if (_caption.text.trim() != _captionOf(widget.item)) _setCaption(widget.item, _caption.text);
     _caption.dispose();
     _tag.dispose();
     super.dispose();
@@ -77,7 +95,7 @@ class _DetailsSheetState extends State<DetailsSheet> {
     final p = Palette.of(context);
     final i = widget.item;
     final lib = app.library;
-    final meta = i.locked ? null : lib.metaOf(i);
+    final tags = _tagsOf(i);
     final camera = _details?.camera.isNotEmpty == true ? _details!.camera : i.camera;
     Widget row(IconData icon, String title, String? sub, {Widget? trailing}) => ListTile(
           leading: Icon(icon, color: p.text2),
@@ -88,7 +106,7 @@ class _DetailsSheetState extends State<DetailsSheet> {
         );
     final albums = i.locked ? app.vault.albumsOf(i).map((a) => a.name).toList() : lib.albumsOf(i).map((a) => a.name).toList();
     return ListenableBuilder(
-      listenable: lib,
+      listenable: Listenable.merge([lib, app.vault]),
       builder: (context, _) => ListView(controller: widget.scroll, padding: const EdgeInsets.only(bottom: 32), children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
@@ -117,7 +135,7 @@ class _DetailsSheetState extends State<DetailsSheet> {
               for (final a in albums) Chip(avatar: Icon(Icons.photo_album_outlined, size: 16, color: p.accent), label: Text(a)),
             ]),
           ),
-        if (meta != null) ...[
+        ...[
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
             child: TextField(
@@ -126,20 +144,20 @@ class _DetailsSheetState extends State<DetailsSheet> {
               maxLines: 4,
               textCapitalization: TextCapitalization.sentences,
               decoration: const InputDecoration(labelText: 'Caption', hintText: 'Add a caption'),
-              onSubmitted: (v) => lib.setCaption(i, v),
+              onSubmitted: (v) => _setCaption(i, v),
             ),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
             child: Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
-              for (final t in meta.tags) InputChip(label: Text(t), onDeleted: () => lib.removeTag(i, t)),
+              for (final t in tags) InputChip(label: Text(t), onDeleted: () => _removeTag(i, t)),
               SizedBox(
                 width: 160,
                 child: TextField(
                   controller: _tag,
                   decoration: const InputDecoration(hintText: 'Add a tag', isDense: true, prefixIcon: Icon(Icons.sell_outlined, size: 18)),
                   onSubmitted: (v) {
-                    lib.addTag(i, v);
+                    _addTag(i, v);
                     _tag.clear();
                   },
                 ),
