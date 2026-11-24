@@ -40,7 +40,7 @@ public sealed class PlacesMap : Grid
             HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Background = new SolidColorBrush(Color.FromArgb(200, 255, 255, 255)),
             Foreground = Brushes.Black,
         };
-        attribution.MouseLeftButtonUp += (_, _) => Shell.OpenUrl("https://www.openstreetmap.org/copyright");
+        attribution.MouseLeftButtonUp += (_, _) => Shell.Open("https://www.openstreetmap.org/copyright");
         Children.Add(attribution);
         var zoom = new StackPanel { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(12) };
         Button ZoomBtn(string text, int step)
