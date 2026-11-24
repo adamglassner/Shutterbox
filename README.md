@@ -114,14 +114,15 @@ In the viewer: Left/Right, + and − to zoom, 0 to fit, Space for the slideshow,
 
 Everything above, on your phone (Android 7 or later). It shows the photos and videos in your phone's gallery (choose which folders in **Settings → Folders**), with the same timeline, Videos section, viewer, details, search, albums, Favorites, Recently added, Folders, People, Places, On this day, Trash, slideshow and Locked album.
 
-| Photos | Viewer | Locked album | Settings |
+| Photos | People | Locked album | Settings |
 |---|---|---|---|
-| ![Photos](https://raw.githubusercontent.com/adamglassner/Shutterbox/screenshots-android/01-photos.png) | ![Viewer](https://raw.githubusercontent.com/adamglassner/Shutterbox/screenshots-android/06-viewer.png) | ![Locked album](https://raw.githubusercontent.com/adamglassner/Shutterbox/screenshots-android/11-locked-album.png) | ![Settings](https://raw.githubusercontent.com/adamglassner/Shutterbox/screenshots-android/13-settings.png) |
+| ![Photos](https://raw.githubusercontent.com/adamglassner/Shutterbox/screenshots-android/01-photos.png) | ![People](https://raw.githubusercontent.com/adamglassner/Shutterbox/screenshots-android/21-people.png) | ![Locked album](https://raw.githubusercontent.com/adamglassner/Shutterbox/screenshots-android/11-locked-album.png) | ![Settings](https://raw.githubusercontent.com/adamglassner/Shutterbox/screenshots-android/13-settings.png) |
 
 - **Selecting:** tap the check circles, or long-press a tile and drag across others (it scrolls as you go). **Select** on a day's heading, **Select all** in the selection bar.
 - **Import:** a folder (a camera card or USB drive through an adapter) or chosen files, copied into `DCIM/Shutterbox/2026/2026-10-14`, skipping what you already have.
 - **Trash:** emptying it deletes from your phone, into Android's own trash where it has one. **Move to Locked album** deletes the originals for good once they're encrypted and checked (Android asks you to allow it).
 - **Locked album:** the same format as on Windows, so one album works on both, even at once through a synced folder. Also on the phone: keep it out of screenshots and the recent-apps preview, lock as soon as you leave or when the phone is put face down, hide the Locked tab (press and hold "Photos", or type the PIN in search), **Lock with Shutterbox** in Android's share menu, a camera whose photos go straight into the Locked album, share for a moment, albums with their own PIN, wrong-guess waits, log and photos, captions, tags, favorites and search. Unlock with your PIN, password or recovery key, and turn on fingerprint or face unlock on each phone. To use an album from your PC, copy its `Shutterbox Locked album` folder to the phone (USB, or a sync app), then **Locked → Open a Locked album from a PC or another phone** (or Settings → Locked album) and pick it. **Settings → Locked album → Move to another folder** puts the phone's album where you can copy or sync it to a PC. Android asks once for "All files access" for these.
+- **People and things:** the same as on Windows, with the same models, on the phone while Shutterbox is open (Albums → People; search for "dog" or a name). Nothing is uploaded.
 - **Updates:** Settings → Updates. Android releases are tagged `android-v<version>`; the Windows releases (and the Bytehawk Studio Launcher) are unaffected.
 
 The phone keeps its library, settings and Locked album in Shutterbox's own storage (removed if you uninstall it, so move the Locked album to a folder of your choice, or restore what's in it, before uninstalling).
