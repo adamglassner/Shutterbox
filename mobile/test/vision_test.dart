@@ -72,7 +72,7 @@ void main() {
       expect(scale, 1.0);
       expect(det.length, 3 * 640 * 640);
       expect([det[0], det[640 * 640], det[2 * 640 * 640]], [50, 100, 200]); // BGR
-      expect(det[60], 0); // outside the picture: black
+      expect(det[150], 0); // outside the picture: black
       final cls = Vision.classifierInput(solid);
       expect(cls[0], closeTo((200 / 255 - 0.485) / 0.229, 1e-4));
       final top = Vision.topLabels(Float32List.fromList([for (var i = 0; i < 1000; i++) i == 7 ? 10.0 : (i == 3 ? 8.0 : 0.0)]));
