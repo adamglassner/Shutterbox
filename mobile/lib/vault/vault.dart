@@ -616,11 +616,11 @@ class Vault extends ChangeNotifier {
     final i = info ?? (throw StateError('The Locked album isn\'t set up.'));
     final key = _key ?? (throw StateError('Unlock first.'));
     final salt = Sbox.randomBytes(16);
+    // one Iterations for both the PIN and the recovery key (vault.json has one)
     i
       ..kind = kind
       ..salt = base64.encode(salt)
-      ..iterations = Sbox.iterations
-      ..wrappedKey = await Sbox.wrap(key, await Sbox.deriveAsync(secret, salt, Sbox.iterations));
+      ..wrappedKey = await Sbox.wrap(key, await Sbox.deriveAsync(secret, salt, i.iterations));
     await _saveInfo(i);
     notifyListeners();
   }
@@ -634,7 +634,7 @@ class Vault extends ChangeNotifier {
     final rsalt = Sbox.randomBytes(16);
     i
       ..recoverySalt = base64.encode(rsalt)
-      ..recoveryWrappedKey = await Sbox.wrap(key, await Sbox.deriveAsync(Sbox.normalizeRecovery(recovery), rsalt, Sbox.iterations));
+      ..recoveryWrappedKey = await Sbox.wrap(key, await Sbox.deriveAsync(Sbox.normalizeRecovery(recovery), rsalt, i.iterations));
     await _saveInfo(i);
     notifyListeners();
     return recovery;
