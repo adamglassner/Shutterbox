@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.0
+
+- **Places:** every photo with a location on a map (OpenStreetMap). Drag to move, scroll to zoom; pins group photos taken close together and split as you zoom in. Click one to see its photos. Map tiles are cached on your PC.
+- **On this day:** photos and videos taken on today's date in earlier years, in the sidebar.
+
 ## 0.4.0
 
 Locked album:

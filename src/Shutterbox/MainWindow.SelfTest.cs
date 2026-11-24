@@ -726,6 +726,32 @@ public partial class MainWindow
             Assert(Vault.Unlock("hunter22"), "back to this PC's album");
         });
 
+        await Test("Places and On this day", async () =>
+        {
+            // give a few photos a location and one today's date in an earlier year (in memory only)
+            var ps = Lib.Photos.Where(p => !p.IsTrashed && !p.IsVideo).Take(6).ToList();
+            var keep = ps.Select(p => (p.Latitude, p.Longitude, p.Taken)).ToList();
+            double[][] spots = { new[] { 45.5231, -122.6765 }, new[] { 45.5262, -122.6812 }, new[] { 47.6062, -122.3321 }, new[] { 48.8566, 2.3522 }, new[] { 48.8606, 2.3376 }, new[] { 35.6762, 139.6503 } };
+            for (int i = 0; i < ps.Count; i++) { ps[i].Latitude = spots[i][0]; ps[i].Longitude = spots[i][1]; }
+            ps[0].Taken = DateTime.Today.AddYears(-3).AddHours(15);
+            ShowView(LibraryView.Places);
+            await Idle();
+            Assert(PlacesHost.Visibility == Visibility.Visible, "the map shows");
+            await Task.Delay(1500); // map tiles, if the network allows
+            await Idle();
+            Shot("22-places");
+            ShowPlace(ps.Take(2).ToList(), "Near 45.52°N, 122.68°W");
+            await Idle();
+            AreEqual(2, _flat.Count, "a place's photos");
+            ShowView(LibraryView.OnThisDay);
+            await Idle();
+            Assert(_flat.Any(f => f.Photo == ps[0]), "on this day");
+            Shot("23-on-this-day");
+            for (int i = 0; i < ps.Count; i++) { (ps[i].Latitude, ps[i].Longitude, ps[i].Taken) = keep[i]; }
+            ShowView(LibraryView.Photos);
+            await Idle();
+        });
+
         await Test("Selecting lots of photos is easy", async () =>
         {
             ShowView(LibraryView.Photos);
