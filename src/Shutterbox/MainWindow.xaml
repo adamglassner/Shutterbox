@@ -199,6 +199,20 @@
                                     <TextBlock Text="Recently added" VerticalAlignment="Center"/>
                                 </DockPanel>
                             </RadioButton>
+                            <RadioButton x:Name="NavPlaces" Style="{StaticResource NavItem}" Tag="places" Checked="Nav_Checked">
+                                <DockPanel>
+                                    <TextBlock Style="{StaticResource NavIcon}" Text="&#xE707;"/>
+                                    <TextBlock x:Name="CountPlaces" Style="{StaticResource NavCount}"/>
+                                    <TextBlock Text="Places" VerticalAlignment="Center"/>
+                                </DockPanel>
+                            </RadioButton>
+                            <RadioButton x:Name="NavOnThisDay" Style="{StaticResource NavItem}" Tag="onthisday" Checked="Nav_Checked">
+                                <DockPanel>
+                                    <TextBlock Style="{StaticResource NavIcon}" Text="&#xE787;"/>
+                                    <TextBlock x:Name="CountOnThisDay" Style="{StaticResource NavCount}"/>
+                                    <TextBlock Text="On this day" VerticalAlignment="Center"/>
+                                </DockPanel>
+                            </RadioButton>
                             <RadioButton x:Name="NavLocked" Style="{StaticResource NavItem}" Tag="locked" Checked="Nav_Checked"
                                          AllowDrop="True" DragOver="AlbumTarget_DragOver" Drop="LockedNav_Drop">
                                 <DockPanel>
@@ -384,6 +398,7 @@
                         </ScrollViewer>
 
                         <ContentControl x:Name="SettingsHost" Grid.Row="1" Visibility="Collapsed" Focusable="False"/>
+                        <ContentControl x:Name="PlacesHost" Grid.Row="1" Visibility="Collapsed" Focusable="False" Margin="24,8,24,24"/>
 
                         <StackPanel x:Name="EmptyState" Grid.Row="1" Visibility="Collapsed" VerticalAlignment="Center"
                                     HorizontalAlignment="Center" MaxWidth="560" Margin="24">

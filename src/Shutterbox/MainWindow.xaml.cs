@@ -8,7 +8,7 @@ using Shutterbox.Views;
 
 namespace Shutterbox;
 
-public enum LibraryView { Photos, Videos, Favorites, Recent, Albums, Album, Folder, Locked, Trash, Settings }
+public enum LibraryView { Photos, Videos, Favorites, Recent, Albums, Album, Folder, Locked, Trash, Settings, Places, Place, OnThisDay }
 public enum TimelineZoom { Years, Months, Days }
 
 public partial class MainWindow : Window
@@ -19,6 +19,24 @@ public partial class MainWindow : Window
     private LibraryView _view = LibraryView.Photos;
     private string _albumId;
     private string _folder;
+    /// <summary>The photos of the place opened from the map, and its name.</summary>
+    private List<Photo> _placePhotos = new();
+    private string _placeName;
+    private Views.PlacesMap _placesMap;
+
+    private static IEnumerable<Photo> OnThisDayPhotos(IEnumerable<Photo> all)
+    {
+        var t = DateTime.Today;
+        return all.Where(p => !p.IsTrashed && p.Taken.Month == t.Month && p.Taken.Day == t.Day && p.Taken.Year < t.Year);
+    }
+
+    /// <summary>Opens a place from the map: its photos in the timeline.</summary>
+    public void ShowPlace(List<Photo> photos, string name)
+    {
+        _placePhotos = photos;
+        _placeName = name;
+        ShowView(LibraryView.Place);
+    }
     private TimelineZoom _zoom = TimelineZoom.Days;
 
     // every photo's view model, created on demand and reused across views
@@ -179,6 +197,10 @@ public partial class MainWindow : Window
         CountLocked.ToolTip = !Vault.IsSetUp ? null : Vault.IsUnlocked ? "Unlocked" : "Locked";
         CountFavorites.Text = favs > 0 ? favs.ToString("N0") : "";
         CountRecent.Text = recent > 0 ? recent.ToString("N0") : "";
+        var placed = Lib.Photos.Count(p => !p.IsTrashed && p.HasLocation);
+        CountPlaces.Text = placed > 0 ? placed.ToString("N0") : "";
+        var otd = OnThisDayPhotos(Lib.Photos).Count();
+        CountOnThisDay.Text = otd > 0 ? otd.ToString("N0") : "";
         CountTrash.Text = trash > 0 ? trash.ToString("N0") : "";
         CountAlbums.Text = Lib.Albums.Count > 0 ? Lib.Albums.Count.ToString("N0") : "";
         if (!_scanning)
@@ -242,6 +264,8 @@ public partial class MainWindow : Window
             "locked" => LibraryView.Locked,
             "favorites" => LibraryView.Favorites,
             "recent" => LibraryView.Recent,
+            "places" => LibraryView.Places,
+            "onthisday" => LibraryView.OnThisDay,
             "albums" => LibraryView.Albums,
             "trash" => LibraryView.Trash,
             "settings" => LibraryView.Settings,
@@ -262,6 +286,8 @@ public partial class MainWindow : Window
                 LibraryView.Locked => NavLocked,
                 LibraryView.Favorites => NavFavorites,
                 LibraryView.Recent => NavRecent,
+                LibraryView.Places or LibraryView.Place => NavPlaces,
+                LibraryView.OnThisDay => NavOnThisDay,
                 LibraryView.Albums => NavAlbums,
                 LibraryView.Trash => NavTrash,
                 LibraryView.Settings => NavSettings,
@@ -272,7 +298,7 @@ public partial class MainWindow : Window
             if (target != null) target.IsChecked = true;
             else
             {
-                foreach (var r in new[] { NavPhotos, NavVideos, NavFavorites, NavRecent, NavAlbums, NavLocked, NavTrash, NavSettings }) r.IsChecked = false;
+                foreach (var r in new[] { NavPhotos, NavVideos, NavFavorites, NavRecent, NavPlaces, NavOnThisDay, NavAlbums, NavLocked, NavTrash, NavSettings }) r.IsChecked = false;
                 foreach (var r in AlbumNav.Children.OfType<RadioButton>().Concat(FolderNav.Children.OfType<RadioButton>())) r.IsChecked = false;
             }
         }
@@ -304,6 +330,14 @@ public partial class MainWindow : Window
             SettingsHost.Visibility = Visibility.Visible;
         }
         else SettingsHost.Visibility = Visibility.Collapsed;
+        if (view == LibraryView.Places)
+        {
+            _placesMap ??= new Views.PlacesMap(ShowPlace);
+            _placesMap.SetPhotos(Lib.Photos.Where(p => !p.IsTrashed));
+            PlacesHost.Content = _placesMap;
+            PlacesHost.Visibility = Visibility.Visible;
+        }
+        else PlacesHost.Visibility = Visibility.Collapsed;
         GateError.Visibility = Visibility.Collapsed;
         GatePassword.Clear();
         ApplyInfoPanelVisibility();
@@ -328,6 +362,19 @@ public partial class MainWindow : Window
             UpdateHeader();
             UpdateSelectionUi();
             UpdateInfo();
+            return;
+        }
+        if (_view == LibraryView.Places)
+        {
+            Timeline.Visibility = Visibility.Collapsed;
+            Banner.Visibility = Visibility.Collapsed;
+            _flat = new();
+            _indexOf.Clear();
+            bool none = _placesMap == null || _placesMap.PlaceCount == 0;
+            PlacesHost.Visibility = none ? Visibility.Collapsed : Visibility.Visible;
+            UpdateHeader();
+            UpdateEmptyState();
+            UpdateSelectionUi();
             return;
         }
         if (_view == LibraryView.Settings)
@@ -391,6 +438,10 @@ public partial class MainWindow : Window
                 return (lockedAlbum != null ? Vault.PhotosIn(lockedAlbum) : Vault.Photos).OrderBy(p => p.IsVideo).ThenByDescending(p => p.Taken);
             case LibraryView.Favorites:
                 return all.Where(p => !p.IsTrashed && p.Favorite).OrderByDescending(p => p.Taken);
+            case LibraryView.Place:
+                return _placePhotos.Where(p => !p.IsTrashed && Lib.Get(p.Id) != null).OrderByDescending(p => p.Taken);
+            case LibraryView.OnThisDay:
+                return OnThisDayPhotos(all).OrderByDescending(p => p.Taken);
             case LibraryView.Recent:
                 var since = DateTime.Now.AddDays(-30);
                 return all.Where(p => !p.IsTrashed && p.Added >= since).OrderByDescending(p => p.Added.Date).ThenByDescending(p => p.Taken);
@@ -506,7 +557,7 @@ public partial class MainWindow : Window
     /// <summary>Search, zoom and slideshow only show where they make sense (not on the lock screen, settings or the album grid).</summary>
     private void UpdateHeaderControls()
     {
-        bool timeline = _view is not (LibraryView.Albums or LibraryView.Settings);
+        bool timeline = _view is not (LibraryView.Albums or LibraryView.Settings or LibraryView.Places);
         bool gated = _view == LibraryView.Locked && !Vault.IsUnlocked;
         ZoomBox.Visibility = timeline && _view != LibraryView.Locked ? Visibility.Visible : Visibility.Collapsed;
         SlideshowBtn.Visibility = timeline && !gated ? Visibility.Visible : Visibility.Collapsed;
@@ -675,6 +726,11 @@ public partial class MainWindow : Window
                 break;
             case LibraryView.Favorites: title = "Favorites"; sub = items(n); break;
             case LibraryView.Recent: title = "Recently added"; sub = items(n) + " in the last 30 days"; break;
+            case LibraryView.Places:
+                var placed = _placesMap?.PlaceCount ?? 0;
+                title = "Places"; sub = placed == 0 ? "" : $"{items(placed)} with a location · drag to move, scroll to zoom, click a pin to see its photos"; break;
+            case LibraryView.Place: title = _placeName ?? "Place"; sub = items(n); break;
+            case LibraryView.OnThisDay: title = "On this day"; sub = n == 0 ? "" : items(n) + $" from {DateTime.Today:MMMM d} in earlier years"; break;
             case LibraryView.Albums: title = "Albums"; sub = Lib.Albums.Count == 1 ? "1 album" : $"{Lib.Albums.Count} albums"; break;
             case LibraryView.Album:
                 var a = Lib.GetAlbum(_albumId);
@@ -758,7 +814,7 @@ public partial class MainWindow : Window
         string title = null, text = null;
         bool buttons = false;
         var q = SearchBox.Text.Trim();
-        if (_view == LibraryView.Settings) { }
+        if (_view == LibraryView.Settings || (_view == LibraryView.Places && (_placesMap?.PlaceCount ?? 0) > 0)) { }
         else if (noFolders && _view is LibraryView.Photos or LibraryView.Recent or LibraryView.Favorites)
         {
             title = "Let's find your photos";
@@ -779,6 +835,9 @@ public partial class MainWindow : Window
                 case LibraryView.Locked: title = "Nothing locked yet"; text = "Select photos or videos anywhere in Shutterbox and choose Lock, drag them onto Locked in the sidebar, or use Add files."; break;
                 case LibraryView.Favorites: title = "No favorites yet"; text = "Press F or click the heart on a photo to keep your best shots here."; break;
                 case LibraryView.Recent: title = "Nothing new"; text = "Photos added to your library in the last 30 days show up here."; break;
+                case LibraryView.Places: title = "No places yet"; text = "Photos with a location (most phones add one when location is on) show up on a map here."; break;
+                case LibraryView.Place: title = "Nothing here now"; text = "These photos were deleted or moved to Trash."; break;
+                case LibraryView.OnThisDay: title = "Nothing on this day"; text = "Photos and videos taken on today's date in earlier years show up here."; break;
                 case LibraryView.Album: title = "This album is empty"; text = "Select photos and choose Add to album, or drag them onto the album in the sidebar."; break;
                 case LibraryView.Trash: title = "Trash is empty"; text = "Photos you delete wait here until you empty the Trash."; break;
                 case LibraryView.Folder: title = "No photos here"; text = _scanning ? "Still looking…" : "This folder doesn't have any pictures Shutterbox can show."; break;
