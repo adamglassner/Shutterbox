@@ -10,6 +10,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shutterbox/app.dart';
 import 'package:shutterbox/library.dart';
+import 'package:shutterbox/models.dart';
 import 'package:shutterbox/widgets.dart';
 import 'package:shutterbox/main.dart';
 import 'package:shutterbox/screens/albums.dart';
@@ -87,7 +88,14 @@ void main() {
       final source = FakeSource();
       final settings = Settings()..theme = theme;
       final lib = Library(source, settings);
-      lib.setItems(source.sample());
+      final now = DateTime.now();
+      final names = source.bytes.keys.toList();
+      lib.setItems([
+        ...source.sample(),
+        // "On this day": the same date in earlier years
+        for (var k = 1; k <= 4; k++)
+          Item(id: 'otd$k', name: 'IMG_${now.year - k}0${k}1.jpg', taken: DateTime(now.year - k, now.month, now.day, 10 + k), folder: 'Camera', folderId: 'f0', source: names[(k * 3) % names.length]),
+      ]);
       final a1 = lib.createAlbum('Road trip', lib.photos.skip(2).take(9));
       lib.setCover(a1, lib.photos[4]);
       lib.createAlbum('Family', lib.photos.skip(12).take(6));

@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shutterbox/library.dart';
 import 'package:shutterbox/models.dart';
+import 'package:shutterbox/screens/places.dart';
 import 'package:shutterbox/settings.dart';
 import 'package:shutterbox/updater.dart';
 import 'package:shutterbox/version.dart';
@@ -117,6 +118,27 @@ void main() {
       final f = lib.folders;
       expect(f.map((x) => x.$2), ['Camera', 'Screenshots', 'WhatsApp Images']);
       expect(lib.inFolder('f3').every((i) => i.folder == 'Screenshots'), isTrue);
+    });
+
+    test('on this day', () {
+      final now = DateTime.now();
+      lib.setItems([
+        ...source.sample(),
+        Item(id: 'old', name: 'old.jpg', taken: DateTime(now.year - 3, now.month, now.day, 9)),
+        Item(id: 'other', name: 'other.jpg', taken: DateTime(now.year - 3, now.month == 1 ? 2 : 1, 1)),
+      ]);
+      expect(lib.onThisDay.map((i) => i.id), ['old']);
+    });
+
+    test('places group photos taken close together', () {
+      final items = [
+        Item(id: 'a', name: 'a.jpg', taken: DateTime(2026), latitude: 45.5231, longitude: -122.6765),
+        Item(id: 'b', name: 'b.jpg', taken: DateTime(2026), latitude: 45.5232, longitude: -122.6766),
+        Item(id: 'c', name: 'c.jpg', taken: DateTime(2026), latitude: 48.8566, longitude: 2.3522),
+      ];
+      expect(clusterItems(items, 4).map((c) => c.items.length), [2, 1]);
+      expect(clusterItems(items, 18).length, 3); // close enough together only when zoomed out
+      expect(clusterItems(items, 4).first.center.latitude, closeTo(45.52315, 1e-6));
     });
 
     test('recently added is newest first', () {

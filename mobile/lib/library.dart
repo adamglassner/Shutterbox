@@ -22,6 +22,7 @@ class Group {
 /// Camera details read from a photo's EXIF.
 class PhotoDetails {
   String? make, model, lens, exposure, aperture, iso, focal;
+  double? latitude, longitude;
   String get camera => [make, model].whereType<String>().where((s) => s.isNotEmpty).join(' ');
   String get settings => [aperture, exposure, iso, focal].whereType<String>().where((s) => s.isNotEmpty).join('  ·  ');
 }
@@ -118,6 +119,10 @@ class Library extends ChangeNotifier {
           meta[i.id] = ItemMeta()..added = _scannedOnce ? now : i.taken;
         } else {
           i.rotation = m.rotation;
+          if (m.lat != null && i.latitude == null) {
+            i.latitude = m.lat;
+            i.longitude = m.lng;
+          }
           if (m.make != null) i.make = m.make;
           if (m.model != null) i.model = m.model;
           if (m.added == null) m.added = _scannedOnce ? now : i.taken;
@@ -151,14 +156,21 @@ class Library extends ChangeNotifier {
     for (final i in List.of(_all)) {
       if (i.isVideo) continue;
       final m = meta[i.id];
-      if (m == null || m.exifRead) continue;
+      if (m == null || (m.exifRead && m.gpsRead)) continue;
       final d = await readDetails(i);
       m.exifRead = true;
+      m.gpsRead = true;
       if (d != null) {
         m.make = d.make;
         m.model = d.model;
         i.make = d.make;
         i.model = d.model;
+        if (d.latitude != null && d.longitude != null) {
+          m.lat = d.latitude;
+          m.lng = d.longitude;
+          i.latitude ??= d.latitude;
+          i.longitude ??= d.longitude;
+        }
       }
       if (++n % 100 == 0) {
         _views.clear();
@@ -192,6 +204,11 @@ class Library extends ChangeNotifier {
         ..iso = t('EXIF ISOSpeedRatings') == null ? null : 'ISO ${t('EXIF ISOSpeedRatings')}';
       final exp = t('EXIF ExposureTime');
       if (exp != null) d.exposure = '${exp}s';
+      final lat = _degrees(t('GPS GPSLatitude')), lng = _degrees(t('GPS GPSLongitude'));
+      if (lat != null && lng != null && !(lat == 0 && lng == 0)) {
+        d.latitude = (t('GPS GPSLatitudeRef') ?? 'N').toUpperCase().startsWith('S') ? -lat : lat;
+        d.longitude = (t('GPS GPSLongitudeRef') ?? 'E').toUpperCase().startsWith('W') ? -lng : lng;
+      }
       final fn = _ratio(t('EXIF FNumber'));
       if (fn != null && fn > 0) d.aperture = 'f/${fn.toStringAsFixed(fn < 10 ? 1 : 0)}';
       final fl = _ratio(t('EXIF FocalLength'));
@@ -202,6 +219,14 @@ class Library extends ChangeNotifier {
     } catch (_) {
       return null;
     }
+  }
+
+  /// "[45, 31, 1201/50]" (degrees, minutes, seconds) to 45.52…
+  static double? _degrees(String? v) {
+    if (v == null) return null;
+    final parts = v.replaceAll(RegExp(r'[\[\]]'), '').split(',').map((x) => _ratio(x.trim())).toList();
+    if (parts.isEmpty || parts.any((x) => x == null)) return null;
+    return parts[0]! + (parts.length > 1 ? parts[1]! / 60 : 0) + (parts.length > 2 ? parts[2]! / 3600 : 0);
   }
 
   /// "28/10" or "2.8"
@@ -251,6 +276,15 @@ class Library extends ChangeNotifier {
 
   /// In Trash, most recently deleted first.
   List<Item> get trash => _view('trash', () => _all.where(isTrashed).toList()..sort((a, b) => meta[b.id]!.trashed!.compareTo(meta[a.id]!.trashed!)));
+
+  /// Photos and videos taken on this day (month and day) in earlier years, newest first.
+  List<Item> get onThisDay => _view('onthisday', () {
+        final now = DateTime.now();
+        return visible.where((i) => i.taken.month == now.month && i.taken.day == now.day && i.taken.year < now.year).toList();
+      });
+
+  /// Everything with a location (for the map).
+  List<Item> get placed => _view('placed', () => visible.where((i) => i.latitude != null && i.longitude != null).toList());
 
   List<Item> inAlbum(Album a) => _view('album:${a.id}', () {
         final ids = a.itemIds.toSet();

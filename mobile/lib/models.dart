@@ -112,8 +112,12 @@ class ItemMeta {
   String? make, model;
   bool exifRead = false;
 
+  /// GPS from EXIF (Android hides it from the gallery's own columns); [gpsRead] once looked for.
+  double? lat, lng;
+  bool gpsRead = false;
+
   bool get isEmpty =>
-      !favorite && caption.isEmpty && tags.isEmpty && rotation == 0 && added == null && trashed == null && make == null && model == null && !exifRead;
+      !favorite && caption.isEmpty && tags.isEmpty && rotation == 0 && added == null && trashed == null && make == null && model == null && !exifRead && !gpsRead;
 
   Map<String, dynamic> toJson() => {
         if (favorite) 'fav': true,
@@ -125,6 +129,9 @@ class ItemMeta {
         if (make != null) 'make': make,
         if (model != null) 'model': model,
         if (exifRead) 'exif': true,
+        if (gpsRead) 'gps': true,
+        if (lat != null) 'lat': lat,
+        if (lng != null) 'lng': lng,
       };
 
   static ItemMeta fromJson(Map<String, dynamic> j) => ItemMeta()
@@ -136,7 +143,10 @@ class ItemMeta {
     ..trashed = DateTime.tryParse('${j['trashed']}')
     ..make = j['make'] as String?
     ..model = j['model'] as String?
-    ..exifRead = j['exif'] == true;
+    ..exifRead = j['exif'] == true
+    ..gpsRead = j['gps'] == true
+    ..lat = (j['lat'] as num?)?.toDouble()
+    ..lng = (j['lng'] as num?)?.toDouble();
 }
 
 /// A folder on the phone (a gallery bucket: Camera, Screenshots, Downloads…).

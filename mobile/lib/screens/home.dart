@@ -198,6 +198,8 @@ class TimelineTab extends StatelessWidget {
                           child: MediaGrid(
                             items: items,
                             selection: selection,
+                            header: !videos && lib.onThisDay.isNotEmpty && !selection.active ? OnThisDayCard(items: lib.onThisDay) : null,
+                            headerHeight: !videos && lib.onThisDay.isNotEmpty && !selection.active ? 176 : 0,
                             onOpen: (i, all) => ViewerScreen.open(context, all, i),
                             empty: EmptyState(
                               icon: videos ? Icons.movie_outlined : Icons.photo_outlined,
@@ -349,6 +351,73 @@ class UpdateBanner extends StatelessWidget {
           child: const Text('Update'),
         ),
       ]),
+    );
+  }
+}
+
+/// "On this day": photos taken on today's date in earlier years, at the top of Photos.
+class OnThisDayCard extends StatelessWidget {
+  const OnThisDayCard({super.key, required this.items});
+  final List<Item> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final app = AppScope.of(context);
+    final p = Palette.of(context);
+    final years = {for (final i in items) DateTime.now().year - i.taken.year}.toList()..sort();
+    final when = years.length == 1 ? '${years.first} ${years.first == 1 ? 'year' : 'years'} ago today' : '${years.first} to ${years.last} years ago today';
+    return InkWell(
+      onTap: () => CollectionScreen.open(context, CollectionKind.onThisDay),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 6, 14, 12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Icons.event_outlined, size: 18, color: p.accent),
+            const SizedBox(width: 8),
+            Text('On this day', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: p.text)),
+            const SizedBox(width: 8),
+            Expanded(child: Text(when, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: p.text3, fontSize: 12.5))),
+            Icon(Icons.chevron_right, color: p.text3),
+          ]),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 116,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: items.length.clamp(0, 12),
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (context, n) {
+                final i = items[n];
+                return GestureDetector(
+                  onTap: () => ViewerScreen.open(context, items, i),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Stack(children: [
+                      SizedBox(
+                        width: 116,
+                        height: 116,
+                        child: RotatedBox(
+                          quarterTurns: (i.rotation ~/ 90) % 4,
+                          child: Image(image: app.thumbnail(i, 256), fit: BoxFit.cover, errorBuilder: (_, __, ___) => ColoredBox(color: p.tile)),
+                        ),
+                      ),
+                      Positioned(
+                        left: 6,
+                        bottom: 6,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(6)),
+                          child: Text('${i.taken.year}', style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w600)),
+                        ),
+                      ),
+                    ]),
+                  ),
+                );
+              },
+            ),
+          ),
+        ]),
+      ),
     );
   }
 }

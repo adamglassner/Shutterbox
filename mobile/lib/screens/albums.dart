@@ -6,6 +6,7 @@ import '../models.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import 'home.dart';
+import 'places.dart';
 import 'viewer.dart';
 
 /// Favorites, Recently added, Folders, Trash and your own albums.
@@ -45,6 +46,12 @@ class AlbumsTab extends StatelessWidget {
                 children: [
                   _QuickTile(icon: Icons.favorite_border, label: 'Favorites', count: lib.favorites.length, onTap: () => CollectionScreen.open(context, CollectionKind.favorites)),
                   _QuickTile(icon: Icons.schedule, label: 'Recently added', count: lib.recent.length, onTap: () => CollectionScreen.open(context, CollectionKind.recent)),
+                  _QuickTile(
+                      icon: Icons.place_outlined,
+                      label: 'Places',
+                      count: lib.placed.length,
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const PlacesScreen()))),
+                  _QuickTile(icon: Icons.event_outlined, label: 'On this day', count: lib.onThisDay.length, onTap: () => CollectionScreen.open(context, CollectionKind.onThisDay)),
                   _QuickTile(
                       icon: Icons.folder_outlined,
                       label: 'Folders',
@@ -237,18 +244,21 @@ class FoldersScreen extends StatelessWidget {
   }
 }
 
-enum CollectionKind { favorites, recent, album, folder, trash }
+enum CollectionKind { favorites, recent, album, folder, trash, place, onThisDay }
 
 /// One collection: Favorites, Recently added, an album, a folder or Trash.
 class CollectionScreen extends StatefulWidget {
-  const CollectionScreen({super.key, required this.kind, this.album, this.folderId, this.title});
+  const CollectionScreen({super.key, required this.kind, this.album, this.folderId, this.title, this.items});
   final CollectionKind kind;
   final Album? album;
   final String? folderId;
   final String? title;
 
-  static Future<void> open(BuildContext context, CollectionKind kind, {Album? album, String? folderId, String? title}) =>
-      Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => CollectionScreen(kind: kind, album: album, folderId: folderId, title: title)));
+  /// For a place on the map.
+  final List<Item>? items;
+
+  static Future<void> open(BuildContext context, CollectionKind kind, {Album? album, String? folderId, String? title, List<Item>? items}) =>
+      Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => CollectionScreen(kind: kind, album: album, folderId: folderId, title: title, items: items)));
 
   @override
   State<CollectionScreen> createState() => _CollectionScreenState();
@@ -271,6 +281,8 @@ class _CollectionScreenState extends State<CollectionScreen> {
       CollectionKind.album => lib.inAlbum(widget.album!),
       CollectionKind.folder => lib.inFolder(widget.folderId!),
       CollectionKind.trash => lib.trash,
+      CollectionKind.place => (widget.items ?? const <Item>[]).where((i) => !lib.isTrashed(i) && lib.all.contains(i)).toList(),
+      CollectionKind.onThisDay => lib.onThisDay,
     };
   }
 
@@ -280,6 +292,8 @@ class _CollectionScreenState extends State<CollectionScreen> {
         CollectionKind.album => widget.album!.name,
         CollectionKind.folder => widget.title ?? 'Folder',
         CollectionKind.trash => 'Trash',
+        CollectionKind.place => widget.title ?? 'Place',
+        CollectionKind.onThisDay => 'On this day',
       };
 
   Widget get _empty => switch (widget.kind) {
@@ -287,6 +301,8 @@ class _CollectionScreenState extends State<CollectionScreen> {
         CollectionKind.recent => const EmptyState(icon: Icons.schedule, title: 'Nothing new', body: 'Photos and videos added to your phone in the last 30 days show up here.'),
         CollectionKind.album => const EmptyState(icon: Icons.photo_album_outlined, title: 'This album is empty', body: 'Select photos in Photos or Videos and choose Album to add them.'),
         CollectionKind.folder => const EmptyState(icon: Icons.folder_outlined, title: 'Nothing here', body: 'This folder has no photos or videos.'),
+        CollectionKind.place => const EmptyState(icon: Icons.place_outlined, title: 'Nothing here now', body: 'These photos were deleted or moved to Trash.'),
+        CollectionKind.onThisDay => const EmptyState(icon: Icons.event_outlined, title: 'Nothing on this day', body: 'Photos and videos taken on today\'s date in earlier years show up here.'),
         CollectionKind.trash => const EmptyState(icon: Icons.delete_outline, title: 'Trash is empty', body: 'Deleted photos and videos wait here. Emptying Trash deletes them from your phone (to Android\'s own trash where it has one).'),
       };
 
@@ -370,7 +386,7 @@ class _CollectionScreenState extends State<CollectionScreen> {
             body: MediaGrid(
               items: items,
               selection: _sel,
-              groupBy: widget.kind == CollectionKind.recent || trash ? 'none' : null,
+              groupBy: widget.kind == CollectionKind.recent || trash ? 'none' : (widget.kind == CollectionKind.onThisDay ? 'year' : null),
               onOpen: (i, all) => ViewerScreen.open(context, all, i, album: widget.album, inTrash: trash),
               empty: _empty,
             ),

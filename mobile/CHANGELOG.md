@@ -1,5 +1,10 @@
 # Shutterbox for Android
 
+## 0.5.0
+
+- **Places:** every photo with a location on a map (OpenStreetMap). Pins group photos taken close together and split as you zoom in; tap one to see its photos. Shutterbox reads locations from the photos in the background (allow "access to photo locations" when Android asks).
+- **On this day:** photos and videos taken on today's date in earlier years, at the top of Photos and in Albums.
+
 ## 0.4.0
 
 Locked album:
