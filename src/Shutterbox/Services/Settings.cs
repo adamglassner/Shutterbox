@@ -65,6 +65,10 @@ public sealed class AppSettings
     public int WrongInARow { get; set; }
     public DateTime? WaitUntil { get; set; }
 
+    // ---- People and things ----
+    /// <summary>Find faces and what's in each photo, on this PC, in the background.</summary>
+    public bool FindPeopleAndThings { get; set; } = true;
+
     // ---- Viewer ----
     public int SlideshowSeconds { get; set; } = 5;
 

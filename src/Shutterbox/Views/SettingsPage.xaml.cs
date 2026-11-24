@@ -56,6 +56,11 @@ public partial class SettingsPage : UserControl
             }
             WatchBox.IsChecked = S.WatchFolders;
             ScanStartBox.IsChecked = S.ScanOnStart;
+            FindPeopleBox.IsChecked = S.FindPeopleAndThings;
+            var (analyzed, faces, people) = PeopleStore.Current?.Counts() ?? (0, 0, 0);
+            PeopleStatus.Text = Analyzer.Total > 0 && Analyzer.Done < Analyzer.Total
+                ? $"Looked through {Analyzer.Done:N0} of {Analyzer.Total:N0} photos so far · {faces:N0} faces"
+                : $"Looked through {analyzed:N0} photos · {faces:N0} faces";
             ImportFolderBox.Text = S.ImportFolder;
             SlideBox.SelectedItem = SlideBox.Items.OfType<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == S.SlideshowSeconds.ToString())
                                     ?? SlideBox.Items[1];
@@ -277,7 +282,17 @@ public partial class SettingsPage : UserControl
         if (_loading) return;
         S.WatchFolders = WatchBox.IsChecked == true;
         S.ScanOnStart = ScanStartBox.IsChecked == true;
+        S.FindPeopleAndThings = FindPeopleBox.IsChecked == true;
         SettingsService.Commit();
+    }
+
+    private void ForgetPeople_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_main.Confirm("Forget every face and person, including the names you gave them?\n\nShutterbox looks through your photos again and groups faces from scratch. Your photos aren't touched.", "Forget all people")) return;
+        PeopleStore.Current?.ForgetPeople();
+        PeopleStore.Current?.Save();
+        Analyzer.Poke();
+        Refresh();
     }
 
     private void SlideBox_SelectionChanged(object sender, SelectionChangedEventArgs e)

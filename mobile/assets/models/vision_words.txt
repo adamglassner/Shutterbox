@@ -1,0 +1,1000 @@
+tench|fish,animal
+goldfish|fish,animal,pet
+great white shark|fish,shark,animal
+tiger shark|fish,shark,animal
+hammerhead|fish,shark,animal
+electric ray|fish,animal
+stingray|fish,animal
+cock|bird,chicken,animal
+hen|bird,chicken,animal
+ostrich|bird,animal
+brambling|bird,animal
+goldfinch|bird,animal
+house finch|bird,animal
+junco|bird,animal
+indigo bunting|bird,animal
+robin|bird,animal
+bulbul|bird,animal
+jay|bird,animal
+magpie|bird,animal
+chickadee|bird,animal
+water ouzel|bird,animal
+kite|bird,animal
+bald eagle|bird,animal
+vulture|bird,animal
+great grey owl|bird,owl,animal
+european fire salamander|animal
+common newt|animal
+eft|animal
+spotted salamander|animal
+axolotl|animal
+bullfrog|frog,animal
+tree frog|frog,animal
+tailed frog|frog,animal
+loggerhead|turtle,animal
+leatherback turtle|turtle,animal
+mud turtle|turtle,animal
+terrapin|turtle,animal
+box turtle|turtle,animal
+banded gecko|lizard,animal
+common iguana|lizard,animal
+american chameleon|lizard,animal
+whiptail|lizard,animal
+agama|lizard,animal
+frilled lizard|lizard,animal
+alligator lizard|lizard,animal
+gila monster|lizard,animal
+green lizard|lizard,animal
+african chameleon|lizard,animal
+komodo dragon|lizard,animal
+african crocodile|crocodile,animal
+american alligator|crocodile,animal
+triceratops|dinosaur,animal
+thunder snake|snake,animal
+ringneck snake|snake,animal
+hognose snake|snake,animal
+green snake|snake,animal
+king snake|snake,animal
+garter snake|snake,animal
+water snake|snake,animal
+vine snake|snake,animal
+night snake|snake,animal
+boa constrictor|snake,animal
+rock python|snake,animal
+indian cobra|snake,animal
+green mamba|snake,animal
+sea snake|snake,animal
+horned viper|snake,animal
+diamondback|snake,animal
+sidewinder|snake,animal
+trilobite|animal
+harvestman|animal
+scorpion|animal
+black and gold garden spider|spider,animal
+barn spider|spider,animal
+garden spider|spider,animal
+black widow|spider,animal
+tarantula|spider,animal
+wolf spider|spider,animal
+tick|animal
+centipede|animal
+black grouse|bird,animal
+ptarmigan|bird,animal
+ruffed grouse|bird,animal
+prairie chicken|bird,animal
+peacock|bird,animal
+quail|bird,animal
+partridge|bird,animal
+african grey|bird,parrot,animal,pet
+macaw|bird,parrot,animal,pet
+sulphur-crested cockatoo|bird,parrot,animal,pet
+lorikeet|bird,parrot,animal,pet
+coucal|bird,animal
+bee eater|bird,animal
+hornbill|bird,animal
+hummingbird|bird,animal
+jacamar|bird,animal
+toucan|bird,animal
+drake|bird,duck,animal
+red-breasted merganser|bird,duck,animal
+goose|bird,duck,animal
+black swan|bird,animal
+tusker|elephant,animal
+echidna|animal
+platypus|animal
+wallaby|kangaroo,animal
+koala|animal
+wombat|animal
+jellyfish|animal
+sea anemone|animal
+brain coral|animal
+flatworm|animal
+nematode|animal
+conch|animal
+snail|animal
+slug|animal
+sea slug|animal
+chiton|animal
+chambered nautilus|animal
+dungeness crab|crab,animal
+rock crab|crab,animal
+fiddler crab|crab,animal
+king crab|crab,animal
+american lobster|lobster,animal
+spiny lobster|lobster,animal
+crayfish|lobster,animal
+hermit crab|crab,animal
+isopod|animal
+white stork|bird,animal
+black stork|bird,animal
+spoonbill|bird,animal
+flamingo|bird,animal
+little blue heron|bird,animal
+american egret|bird,animal
+bittern|bird,animal
+crane|bird,animal
+limpkin|bird,animal
+european gallinule|bird,animal
+american coot|bird,animal
+bustard|bird,animal
+ruddy turnstone|bird,animal
+red-backed sandpiper|bird,animal
+redshank|bird,animal
+dowitcher|bird,animal
+oystercatcher|bird,animal
+pelican|bird,animal
+king penguin|bird,penguin,animal
+albatross|bird,animal
+grey whale|whale,animal
+killer whale|whale,dolphin,animal
+dugong|animal
+sea lion|seal,animal
+chihuahua|dog,puppy,animal,pet
+japanese spaniel|dog,puppy,animal,pet
+maltese dog|dog,puppy,animal,pet
+pekinese|dog,puppy,animal,pet
+shih-tzu|dog,puppy,animal,pet
+blenheim spaniel|dog,puppy,animal,pet
+papillon|dog,puppy,animal,pet
+toy terrier|dog,puppy,animal,pet
+rhodesian ridgeback|dog,puppy,animal,pet
+afghan hound|dog,puppy,animal,pet
+basset|dog,puppy,animal,pet
+beagle|dog,puppy,animal,pet
+bloodhound|dog,puppy,animal,pet
+bluetick|dog,puppy,animal,pet
+black-and-tan coonhound|dog,puppy,animal,pet
+walker hound|dog,puppy,animal,pet
+english foxhound|dog,puppy,animal,pet
+redbone|dog,puppy,animal,pet
+borzoi|dog,puppy,animal,pet
+irish wolfhound|dog,puppy,animal,pet
+italian greyhound|dog,puppy,animal,pet
+whippet|dog,puppy,animal,pet
+ibizan hound|dog,puppy,animal,pet
+norwegian elkhound|dog,puppy,animal,pet
+otterhound|dog,puppy,animal,pet
+saluki|dog,puppy,animal,pet
+scottish deerhound|dog,puppy,animal,pet
+weimaraner|dog,puppy,animal,pet
+staffordshire bullterrier|dog,puppy,animal,pet
+american staffordshire terrier|dog,puppy,animal,pet
+bedlington terrier|dog,puppy,animal,pet
+border terrier|dog,puppy,animal,pet
+kerry blue terrier|dog,puppy,animal,pet
+irish terrier|dog,puppy,animal,pet
+norfolk terrier|dog,puppy,animal,pet
+norwich terrier|dog,puppy,animal,pet
+yorkshire terrier|dog,puppy,animal,pet
+wire-haired fox terrier|dog,puppy,animal,pet
+lakeland terrier|dog,puppy,animal,pet
+sealyham terrier|dog,puppy,animal,pet
+airedale|dog,puppy,animal,pet
+cairn|dog,puppy,animal,pet
+australian terrier|dog,puppy,animal,pet
+dandie dinmont|dog,puppy,animal,pet
+boston bull|dog,puppy,animal,pet
+miniature schnauzer|dog,puppy,animal,pet
+giant schnauzer|dog,puppy,animal,pet
+standard schnauzer|dog,puppy,animal,pet
+scotch terrier|dog,puppy,animal,pet
+tibetan terrier|dog,puppy,animal,pet
+silky terrier|dog,puppy,animal,pet
+soft-coated wheaten terrier|dog,puppy,animal,pet
+west highland white terrier|dog,puppy,animal,pet
+lhasa|dog,puppy,animal,pet
+flat-coated retriever|dog,puppy,animal,pet
+curly-coated retriever|dog,puppy,animal,pet
+golden retriever|dog,puppy,animal,pet
+labrador retriever|dog,puppy,animal,pet
+chesapeake bay retriever|dog,puppy,animal,pet
+german short-haired pointer|dog,puppy,animal,pet
+vizsla|dog,puppy,animal,pet
+english setter|dog,puppy,animal,pet
+irish setter|dog,puppy,animal,pet
+gordon setter|dog,puppy,animal,pet
+brittany spaniel|dog,puppy,animal,pet
+clumber|dog,puppy,animal,pet
+english springer|dog,puppy,animal,pet
+welsh springer spaniel|dog,puppy,animal,pet
+cocker spaniel|dog,puppy,animal,pet
+sussex spaniel|dog,puppy,animal,pet
+irish water spaniel|dog,puppy,animal,pet
+kuvasz|dog,puppy,animal,pet
+schipperke|dog,puppy,animal,pet
+groenendael|dog,puppy,animal,pet
+malinois|dog,puppy,animal,pet
+briard|dog,puppy,animal,pet
+kelpie|dog,puppy,animal,pet
+komondor|dog,puppy,animal,pet
+old english sheepdog|dog,puppy,animal,pet
+shetland sheepdog|dog,puppy,animal,pet
+collie|dog,puppy,animal,pet
+border collie|dog,puppy,animal,pet
+bouvier des flandres|dog,puppy,animal,pet
+rottweiler|dog,puppy,animal,pet
+german shepherd|dog,puppy,animal,pet
+doberman|dog,puppy,animal,pet
+miniature pinscher|dog,puppy,animal,pet
+greater swiss mountain dog|dog,puppy,animal,pet
+bernese mountain dog|dog,puppy,animal,pet
+appenzeller|dog,puppy,animal,pet
+entlebucher|dog,puppy,animal,pet
+boxer|dog,puppy,animal,pet
+bull mastiff|dog,puppy,animal,pet
+tibetan mastiff|dog,puppy,animal,pet
+french bulldog|dog,puppy,animal,pet
+great dane|dog,puppy,animal,pet
+saint bernard|dog,puppy,animal,pet
+eskimo dog|dog,puppy,animal,pet
+malamute|dog,puppy,animal,pet
+siberian husky|dog,puppy,animal,pet
+dalmatian|dog,puppy,animal,pet
+affenpinscher|dog,puppy,animal,pet
+basenji|dog,puppy,animal,pet
+pug|dog,puppy,animal,pet
+leonberg|dog,puppy,animal,pet
+newfoundland|dog,puppy,animal,pet
+great pyrenees|dog,puppy,animal,pet
+samoyed|dog,puppy,animal,pet
+pomeranian|dog,puppy,animal,pet
+chow|dog,puppy,animal,pet
+keeshond|dog,puppy,animal,pet
+brabancon griffon|dog,puppy,animal,pet
+pembroke|dog,puppy,animal,pet
+cardigan|dog,puppy,animal,pet
+toy poodle|dog,puppy,animal,pet
+miniature poodle|dog,puppy,animal,pet
+standard poodle|dog,puppy,animal,pet
+mexican hairless|dog,puppy,animal,pet
+timber wolf|wolf,animal
+white wolf|wolf,animal
+red wolf|wolf,animal
+coyote|wolf,animal
+dingo|animal
+dhole|animal
+african hunting dog|animal
+hyena|animal
+red fox|fox,animal
+kit fox|fox,animal
+arctic fox|fox,animal
+grey fox|fox,animal
+tabby|cat,kitten,animal,pet
+tiger cat|cat,kitten,animal,pet
+persian cat|cat,kitten,animal,pet
+siamese cat|cat,kitten,animal,pet
+egyptian cat|cat,kitten,animal,pet
+cougar|big cat,animal
+lynx|big cat,animal
+leopard|big cat,animal
+snow leopard|big cat,leopard,animal
+jaguar|big cat,leopard,animal
+lion|big cat,animal
+tiger|big cat,animal
+cheetah|big cat,animal
+brown bear|bear,animal
+american black bear|bear,animal
+ice bear|bear,animal
+sloth bear|bear,animal
+mongoose|animal
+meerkat|animal
+tiger beetle|insect,bug,beetle,animal
+ladybug|insect,bug,beetle,animal
+ground beetle|insect,bug,beetle,animal
+long-horned beetle|insect,bug,beetle,animal
+leaf beetle|insect,bug,beetle,animal
+dung beetle|insect,bug,beetle,animal
+rhinoceros beetle|insect,bug,beetle,animal
+weevil|insect,bug,beetle,animal
+fly|insect,bug,animal
+bee|insect,bug,animal
+ant|insect,bug,animal
+grasshopper|insect,bug,animal
+cricket|insect,bug,animal
+walking stick|insect,bug,animal
+cockroach|insect,bug,animal
+mantis|insect,bug,animal
+cicada|insect,bug,animal
+leafhopper|insect,bug,animal
+lacewing|insect,bug,animal
+dragonfly|insect,bug,animal
+damselfly|insect,bug,animal
+admiral|insect,butterfly,animal
+ringlet|insect,butterfly,animal
+monarch|insect,butterfly,animal
+cabbage butterfly|insect,butterfly,animal
+sulphur butterfly|insect,butterfly,animal
+lycaenid|insect,butterfly,animal
+starfish|animal
+sea urchin|animal
+sea cucumber|animal
+wood rabbit|rabbit,bunny,animal,pet
+hare|rabbit,bunny,animal,pet
+angora|rabbit,bunny,animal,pet
+hamster|animal,pet
+porcupine|animal
+fox squirrel|squirrel,animal
+marmot|animal
+beaver|animal
+guinea pig|hamster,animal,pet
+sorrel|horse,animal
+zebra|animal
+hog|pig,animal
+wild boar|pig,animal
+warthog|pig,animal
+hippopotamus|animal
+ox|cow,animal
+water buffalo|cow,animal
+bison|cow,animal
+ram|sheep,animal
+bighorn|sheep,animal
+ibex|goat,animal
+hartebeest|deer,animal
+impala|deer,animal
+gazelle|deer,animal
+arabian camel|camel,animal
+llama|animal
+weasel|animal
+mink|animal
+polecat|animal
+black-footed ferret|animal
+otter|animal
+skunk|animal
+badger|animal
+armadillo|animal
+three-toed sloth|animal
+orangutan|monkey,ape,animal
+gorilla|monkey,ape,animal
+chimpanzee|monkey,ape,animal
+gibbon|monkey,animal
+siamang|monkey,animal
+guenon|monkey,animal
+patas|monkey,animal
+baboon|monkey,animal
+macaque|monkey,animal
+langur|monkey,animal
+colobus|monkey,animal
+proboscis monkey|monkey,animal
+marmoset|monkey,animal
+capuchin|monkey,animal
+howler monkey|monkey,animal
+titi|monkey,animal
+spider monkey|monkey,animal
+squirrel monkey|monkey,animal
+madagascar cat|monkey,animal
+indri|monkey,animal
+indian elephant|elephant,animal
+african elephant|elephant,animal
+lesser panda|panda,animal
+giant panda|panda,animal
+barracouta|fish,animal
+eel|fish,animal
+coho|fish,animal
+rock beauty|fish,animal
+anemone fish|fish,animal
+sturgeon|fish,animal
+gar|fish,animal
+lionfish|fish,animal
+puffer|fish,animal
+abacus|
+abaya|clothes
+academic gown|clothes
+accordion|
+acoustic guitar|guitar,music,instrument
+aircraft carrier|
+airliner|airplane,plane,aircraft,vehicle
+airship|aircraft
+altar|
+ambulance|car,vehicle
+amphibian|
+analog clock|clock
+apiary|
+apron|clothes
+ashcan|
+assault rifle|
+backpack|bag
+bakery|
+balance beam|
+balloon|toy
+ballpoint|
+band aid|
+banjo|
+bannister|
+barbell|
+barber chair|chair
+barbershop|
+barn|building,house
+barometer|
+barrel|
+barrow|
+baseball|ball,sports
+basketball|ball,sports
+bassinet|bed,baby
+bassoon|
+bathing cap|
+bath towel|
+bathtub|
+beach wagon|car,vehicle
+beacon|building,lighthouse,tower
+beaker|
+bearskin|
+beer bottle|drink,beer
+beer glass|drink,beer
+bell cote|
+bib|
+bicycle-built-for-two|bicycle,bike,vehicle
+bikini|swimming,swimsuit
+binder|
+binoculars|
+birdhouse|
+boathouse|building,house
+bobsled|
+bolo tie|
+bonnet|hat
+bookcase|
+bookshop|shop,book
+bottlecap|
+bow|
+bow tie|
+brass|
+brassiere|
+breakwater|
+breastplate|
+broom|
+bucket|
+buckle|
+bulletproof vest|
+bullet train|train,vehicle
+butcher shop|
+cab|car,taxi,vehicle
+caldron|kitchen
+candle|fire
+cannon|
+canoe|boat,vehicle
+can opener|
+cardigan|clothes
+car mirror|
+carousel|
+carpenters kit|
+carton|
+car wheel|car,vehicle
+cash machine|
+cassette|
+cassette player|
+castle|building
+catamaran|boat,sailing,vehicle
+cd player|
+cello|music,instrument
+cellular telephone|phone
+chain|
+chainlink fence|
+chain mail|
+chain saw|tools
+chest|
+chiffonier|
+chime|
+china cabinet|
+christmas stocking|christmas
+church|building
+cinema|building
+cleaver|
+cliff dwelling|building,house
+cloak|clothes
+clog|
+cocktail shaker|
+coffee mug|drink,coffee
+coffeepot|
+coil|
+combination lock|
+computer keyboard|computer,keyboard
+confectionery|shop
+container ship|boat,ship,vehicle
+convertible|car,vehicle
+corkscrew|
+cornet|music,instrument
+cowboy boot|shoe
+cowboy hat|hat,clothes
+cradle|
+crane|
+crash helmet|
+crate|
+crib|bed,baby
+crock pot|
+croquet ball|ball,sports
+crutch|
+cuirass|
+dam|
+desk|table
+desktop computer|computer
+dial telephone|phone
+diaper|baby
+digital clock|clock
+digital watch|watch
+dining table|table
+dishrag|
+dishwasher|
+disk brake|
+dock|
+dogsled|snow
+dome|building
+doormat|
+drilling platform|
+drum|
+drumstick|
+dumbbell|
+dutch oven|
+electric fan|
+electric guitar|guitar,music,instrument
+electric locomotive|train,vehicle
+entertainment center|
+envelope|
+espresso maker|kitchen
+face powder|
+feather boa|
+file|
+fireboat|boat,vehicle
+fire engine|truck,fire,vehicle
+fire screen|
+flagpole|
+flute|music,instrument
+folding chair|chair
+football helmet|hat
+forklift|
+fountain|
+fountain pen|
+four-poster|bed
+freight car|train,vehicle
+french horn|music,instrument
+frying pan|kitchen
+fur coat|
+garbage truck|truck,vehicle
+gasmask|
+gas pump|
+goblet|
+go-kart|car,toy,vehicle
+golf ball|ball,sports,golf
+golfcart|golf
+gondola|boat,vehicle
+gong|
+gown|clothes,dress,wedding
+grand piano|keyboard,piano,music,instrument
+greenhouse|building
+grille|car,vehicle
+grocery store|shop
+guillotine|
+hair slide|
+hair spray|
+half track|
+hammer|tools
+hamper|
+hand blower|
+hand-held computer|computer
+handkerchief|
+hard disc|
+harmonica|music,instrument
+harp|music,instrument
+harvester|
+hatchet|tools
+holster|
+home theater|
+honeycomb|
+hook|
+hoopskirt|clothes
+horizontal bar|
+horse cart|horse
+hourglass|
+ipod|
+iron|
+jack-o-lantern|pumpkin,halloween
+jean|clothes
+jeep|car,vehicle
+jersey|clothes
+jigsaw puzzle|
+jinrikisha|
+joystick|
+kimono|
+knee pad|
+knot|
+lab coat|clothes
+ladle|
+lampshade|
+laptop|computer
+lawn mower|garden
+lens cap|
+letter opener|
+library|book
+lifeboat|boat,vehicle
+lighter|
+limousine|car,vehicle
+liner|boat,ship,vehicle
+lipstick|
+loafer|shoe
+lotion|
+loudspeaker|
+loupe|
+lumbermill|
+magnetic compass|
+mailbag|
+mailbox|
+maillot|swimming,swimsuit
+maillot|swimming,swimsuit
+manhole cover|
+maraca|music,instrument
+marimba|
+mask|
+matchstick|
+maypole|
+maze|
+measuring cup|
+medicine chest|
+megalith|
+microphone|
+microwave|kitchen
+military uniform|
+milk can|
+minibus|bus,vehicle
+miniskirt|clothes,dress
+minivan|car,van,vehicle
+missile|
+mitten|
+mixing bowl|kitchen
+mobile home|
+model t|car,vehicle
+modem|
+monastery|building,church
+monitor|computer,screen
+moped|bike,motorcycle,vehicle
+mortar|
+mortarboard|
+mosque|building
+mosquito net|
+motor scooter|bike,motorcycle,vehicle
+mountain bike|bicycle,bike,vehicle
+mountain tent|mountain,tent,camping
+mouse|computer
+mousetrap|
+moving van|truck,van,vehicle
+muzzle|
+nail|
+neck brace|
+necklace|
+nipple|
+notebook|
+obelisk|
+oboe|music,instrument
+ocarina|music,instrument
+odometer|
+oil filter|
+organ|
+oscilloscope|
+overskirt|clothes
+oxcart|
+oxygen mask|
+packet|
+paddle|boat,vehicle
+paddlewheel|
+padlock|
+paintbrush|
+pajama|clothes
+palace|building,castle
+panpipe|
+paper towel|
+parachute|
+parallel bars|
+park bench|garden
+parking meter|street
+passenger car|car,train,vehicle
+patio|
+pay-phone|phone
+pedestal|
+pencil box|
+pencil sharpener|
+perfume|
+petri dish|
+photocopier|
+pick|
+pickelhaube|
+picket fence|garden
+pickup|car,truck,vehicle
+pier|
+piggy bank|
+pill bottle|
+pillow|
+ping-pong ball|ball,sports
+pinwheel|
+pirate|boat,ship,vehicle
+pitcher|
+plane|
+planetarium|building
+plastic bag|bag
+plate rack|
+plow|
+plunger|tools
+polaroid camera|camera
+pole|
+police van|van
+poncho|clothes
+pool table|
+pop bottle|
+pot|plant,garden
+potters wheel|
+power drill|tools
+prayer rug|
+printer|
+prison|
+projectile|
+projector|
+puck|
+punching bag|
+purse|bag
+quill|
+quilt|
+racer|car,vehicle
+racket|
+radiator|
+radio|
+radio telescope|
+rain barrel|
+recreational vehicle|
+reel|
+reflex camera|camera
+refrigerator|kitchen
+remote control|
+restaurant|building
+revolver|
+rifle|
+rocking chair|chair
+rotisserie|kitchen
+rubber eraser|
+rugby ball|ball,sports,football
+rule|
+running shoe|shoe
+safe|
+safety pin|
+saltshaker|
+sandal|shoe
+sarong|clothes
+sax|music,instrument
+scabbard|
+scale|
+school bus|bus,vehicle
+schooner|boat,ship,sailing,vehicle
+scoreboard|
+screen|computer,tv
+screw|
+screwdriver|tools
+seat belt|
+sewing machine|
+shield|
+shoe shop|
+shoji|
+shopping basket|
+shopping cart|
+shovel|
+shower cap|hat
+shower curtain|
+ski|snow,skiing,sports
+ski mask|
+sleeping bag|
+slide rule|
+sliding door|
+slot|
+snorkel|sports
+snowmobile|snow
+snowplow|snow
+soap dispenser|
+soccer ball|ball,sports,football,soccer
+sock|
+solar dish|
+sombrero|hat
+soup bowl|
+space bar|
+space heater|
+space shuttle|
+spatula|kitchen
+speedboat|boat,vehicle
+spider web|
+spindle|
+sports car|car,vehicle
+spotlight|
+stage|
+steam locomotive|train,vehicle
+steel arch bridge|bridge
+steel drum|music,instrument
+stethoscope|
+stole|
+stone wall|
+stopwatch|watch
+stove|
+strainer|
+streetcar|train,tram,street,vehicle
+stretcher|
+studio couch|sofa
+stupa|building,tower
+submarine|boat,ship,vehicle
+suit|clothes
+sundial|
+sunglass|glasses,sunglasses
+sunglasses|glasses
+sunscreen|
+suspension bridge|bridge
+swab|
+sweatshirt|clothes
+swimming trunks|swimming,swimsuit
+swing|
+switch|
+syringe|
+table lamp|
+tank|
+tape player|
+teapot|
+teddy|toy
+television|tv,screen
+tennis ball|ball,sports,tennis
+thatch|
+theater curtain|
+thimble|
+thresher|
+throne|chair
+tile roof|house
+toaster|
+tobacco shop|shop
+toilet seat|
+torch|
+totem pole|
+tow truck|truck,vehicle
+toyshop|shop
+tractor|vehicle
+trailer truck|truck,vehicle
+tray|
+trench coat|clothes
+tricycle|bicycle,vehicle
+trimaran|boat,sailing,vehicle
+tripod|
+triumphal arch|
+trolleybus|bus,tram,vehicle
+trombone|music,instrument
+tub|
+turnstile|
+typewriter keyboard|
+umbrella|
+unicycle|bicycle,vehicle
+upright|keyboard,piano,music,instrument
+vacuum|
+vase|
+vault|
+velvet|
+vending machine|
+vestment|
+viaduct|bridge
+violin|music,instrument
+volleyball|ball,sports
+waffle iron|
+wall clock|clock
+wallet|bag
+wardrobe|
+warplane|airplane,plane,aircraft,vehicle
+washbasin|
+washer|
+water bottle|drink
+water jug|
+water tower|
+whiskey jug|
+whistle|
+wig|
+window screen|
+window shade|
+windsor tie|
+wine bottle|drink,wine
+wing|airplane,plane,aircraft,vehicle
+wok|kitchen
+wooden spoon|
+wool|
+worm fence|
+wreck|
+yawl|boat,sailing,vehicle
+yurt|
+web site|
+comic book|
+crossword puzzle|
+street sign|street
+traffic light|street
+book jacket|book
+menu|
+plate|
+guacamole|food
+consomme|food
+hot pot|food
+trifle|food,dessert
+ice cream|food,dessert
+ice lolly|food,dessert,ice cream
+french loaf|food,bread
+bagel|food,bread
+pretzel|food,bread
+cheeseburger|food,burger
+hotdog|food
+mashed potato|food
+head cabbage|food,vegetable
+broccoli|food,vegetable
+cauliflower|food,vegetable
+zucchini|food,vegetable
+spaghetti squash|food,vegetable
+acorn squash|food,vegetable
+butternut squash|food,vegetable
+cucumber|food,vegetable
+artichoke|food,vegetable
+bell pepper|food,vegetable
+cardoon|food,vegetable
+mushroom|food
+granny smith|food,fruit
+strawberry|food,fruit
+orange|food,fruit
+lemon|food,fruit
+fig|food,fruit
+pineapple|food,fruit
+banana|food,fruit
+jackfruit|food,fruit
+custard apple|food,fruit
+pomegranate|food,fruit
+hay|food
+carbonara|food,pasta
+chocolate sauce|food,dessert
+dough|food
+meat loaf|food
+pizza|food
+potpie|food
+burrito|food
+red wine|drink,wine
+espresso|drink,coffee
+cup|drink
+eggnog|drink
+alp|mountain,landscape,nature
+bubble|
+cliff|landscape,nature
+coral reef|sea,ocean,landscape,nature,underwater
+geyser|landscape,nature
+lakeside|lake,river,landscape,nature
+promontory|beach,sea,ocean,landscape,nature,cliff
+sandbar|beach,sea,landscape,nature
+seashore|beach,sea,ocean,landscape,nature
+valley|mountain,river,landscape,nature
+volcano|mountain,landscape,nature
+ballplayer|sports,baseball
+groom|wedding
+scuba diver|underwater,diving,swimming
+rapeseed|nature,flower,plant
+daisy|nature,flower,plant
+yellow ladys slipper|nature,flower,plant
+corn|vegetable,nature
+acorn|nature,tree
+hip|nature
+buckeye|nature,tree
+coral fungus|nature,mushroom
+agaric|nature,mushroom
+gyromitra|nature,mushroom
+stinkhorn|nature,mushroom
+earthstar|nature,mushroom
+hen-of-the-woods|nature,mushroom
+bolete|nature,mushroom
+ear|
+toilet tissue|

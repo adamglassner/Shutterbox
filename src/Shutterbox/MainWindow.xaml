@@ -199,6 +199,13 @@
                                     <TextBlock Text="Recently added" VerticalAlignment="Center"/>
                                 </DockPanel>
                             </RadioButton>
+                            <RadioButton x:Name="NavPeople" Style="{StaticResource NavItem}" Tag="people" Checked="Nav_Checked">
+                                <DockPanel>
+                                    <TextBlock Style="{StaticResource NavIcon}" Text="&#xE716;"/>
+                                    <TextBlock x:Name="CountPeople" Style="{StaticResource NavCount}"/>
+                                    <TextBlock Text="People" VerticalAlignment="Center"/>
+                                </DockPanel>
+                            </RadioButton>
                             <RadioButton x:Name="NavPlaces" Style="{StaticResource NavItem}" Tag="places" Checked="Nav_Checked">
                                 <DockPanel>
                                     <TextBlock Style="{StaticResource NavIcon}" Text="&#xE707;"/>
@@ -399,6 +406,7 @@
 
                         <ContentControl x:Name="SettingsHost" Grid.Row="1" Visibility="Collapsed" Focusable="False"/>
                         <ContentControl x:Name="PlacesHost" Grid.Row="1" Visibility="Collapsed" Focusable="False" Margin="24,8,24,24"/>
+                        <ContentControl x:Name="PeopleHost" Grid.Row="1" Visibility="Collapsed" Focusable="False"/>
 
                         <StackPanel x:Name="EmptyState" Grid.Row="1" Visibility="Collapsed" VerticalAlignment="Center"
                                     HorizontalAlignment="Center" MaxWidth="560" Margin="24">

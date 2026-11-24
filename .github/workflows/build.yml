@@ -77,6 +77,8 @@ jobs:
           # the Locked album format: open the reference album (made by mobile/tool/vault_ref.py) and make one it checks
           $env:SHUTTERBOX_VAULT4 = Join-Path $PWD 'mobile/test/fixtures/vault4'
           $env:SHUTTERBOX_EXPORT = Join-Path $env:RUNNER_TEMP 'windows-locked-album'
+          # People and things: the pictures and what tools/vision_ref.py finds in them
+          $env:SHUTTERBOX_VISION = Join-Path $PWD 'tests/vision'
           $p = Start-Process dist/Shutterbox.exe -ArgumentList '--self-test', "`"$out`"", "`"$shots`"" -PassThru
           if (-not $p.WaitForExit(480000)) { Stop-Process -Id $p.Id -Force; Write-Host '::error::Self-test timed out' }
           if (Test-Path $out) { $lines = Get-Content $out; $lines | Write-Host } else { $lines = @('(no output file)') }

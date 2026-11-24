@@ -39,11 +39,18 @@
   <ItemGroup>
     <!-- Windows Hello for the Locked album keeps its key protected for your Windows account (DPAPI) -->
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+    <!-- People and "search by what's in the photo" run these models on the PC -->
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.20.1" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- Shown in Settings > About > What's new -->
     <EmbeddedResource Include="..\..\CHANGELOG.md" LogicalName="CHANGELOG.md" />
+    <!-- The same models and words as the Android app (see mobile/assets/models/NOTICE.md) -->
+    <EmbeddedResource Include="..\..\mobile\assets\models\face_detection_yunet_2023mar.onnx" LogicalName="face_detection_yunet_2023mar.onnx" />
+    <EmbeddedResource Include="..\..\mobile\assets\models\face_recognition_sface_2021dec_int8.onnx" LogicalName="face_recognition_sface_2021dec_int8.onnx" />
+    <EmbeddedResource Include="..\..\mobile\assets\models\image_classification_mobilenetv2_2022apr_int8.onnx" LogicalName="image_classification_mobilenetv2_2022apr_int8.onnx" />
+    <EmbeddedResource Include="..\..\mobile\assets\models\vision_words.txt" LogicalName="vision_words.txt" />
   </ItemGroup>
 
   <ItemGroup>

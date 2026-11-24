@@ -752,6 +752,146 @@ public partial class MainWindow
             await Idle();
         });
 
+        await Test("People and things (on this PC)", async () =>
+        {
+            var dir = Environment.GetEnvironmentVariable("SHUTTERBOX_VISION");
+            Assert(dir != null && File.Exists(IOPath.Combine(dir, "expected.json")), "SHUTTERBOX_VISION points at tests/vision");
+            Assert(Vision.EnsureLoaded(), "the models load: " + Vision.LoadError);
+            AreEqual("golden retriever", Vision.LabelName(207), "class names");
+            Assert(Vision.LabelWords(207).Contains("dog"), "golden retriever is a dog");
+
+            // 1. The same faces and things as tools/vision_ref.py
+            using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(IOPath.Combine(dir, "expected.json")));
+            var found = new Dictionary<string, VisionResult>();
+            foreach (var entry in doc.RootElement.EnumerateObject())
+            {
+                var bytes = File.ReadAllBytes(IOPath.Combine(dir, entry.Name));
+                var bmp = new BitmapImage();
+                bmp.BeginInit(); bmp.CacheOption = BitmapCacheOption.OnLoad; bmp.StreamSource = new MemoryStream(bytes); bmp.EndInit(); bmp.Freeze();
+                var r = await Task.Run(() => Vision.Analyze(bmp));
+                found[entry.Name] = r;
+                var want = entry.Value.GetProperty("faces").EnumerateArray().ToList();
+                AreEqual(want.Count, r.Faces.Count, entry.Name + " faces");
+                for (int i = 0; i < want.Count; i++)
+                {
+                    var box = want[i].GetProperty("box").EnumerateArray().Select(v => v.GetDouble()).ToArray();
+                    var f = r.Faces[i];
+                    double tol = Math.Max(4, box[2] * 0.08);
+                    Assert(Math.Abs(f.X - box[0]) < tol && Math.Abs(f.Y - box[1]) < tol && Math.Abs(f.W - box[2]) < tol && Math.Abs(f.H - box[3]) < tol,
+                        $"{entry.Name} face at {f.X:0},{f.Y:0} {f.W:0}x{f.H:0}, expected {box[0]:0},{box[1]:0} {box[2]:0}x{box[3]:0}");
+                    var e = want[i].GetProperty("embedding").EnumerateArray().Select(v => (float)v.GetDouble()).ToArray();
+                    var cos = Vision.Cosine(f.Embedding, e);
+                    Log($"INFO {entry.Name} face {i}: cosine with the reference {cos:0.000}");
+                    Assert(cos >= 0.9, $"{entry.Name} embedding matches the reference ({cos:0.000})");
+                }
+                var top = entry.Value.GetProperty("labels")[0];
+                Log($"INFO {entry.Name}: {string.Join(", ", r.Labels.Select(l => $"{Vision.LabelName(l.Id)} {l.P:0.00}"))}");
+                if (top.GetProperty("p").GetDouble() >= 0.5) AreEqual(top.GetProperty("id").GetInt32(), r.Labels.FirstOrDefault().Id, entry.Name + " top label");
+            }
+            var same = Vision.Cosine(found["astronaut.jpg"].Faces[0].Embedding, found["astronaut2.jpg"].Faces[0].Embedding);
+            var other = Vision.Cosine(found["astronaut.jpg"].Faces[0].Embedding, found["cameraman.jpg"].Faces[0].Embedding);
+            Log($"INFO same person {same:0.000}, different people {other:0.000}");
+            Assert(same >= PeopleStore.Threshold + 0.1, "two photos of one person are close");
+            Assert(other < PeopleStore.Threshold - 0.05, "two people are far apart");
+
+            // 2. Grouping, names and search, in the real library
+            var folder = IOPath.Combine(pics, "Faces");
+            Directory.CreateDirectory(folder);
+            // neutral file names, so search can only find them by what's in them
+            var names = found.Keys.Select((n, i) => (n, file: $"IMG_71{i:00}.jpg")).ToDictionary(x => x.n, x => x.file);
+            foreach (var n in found.Keys) File.Copy(IOPath.Combine(dir, n), IOPath.Combine(folder, names[n]), true);
+            await StartScan(null);
+            await Idle();
+            var people = PeopleStore.Current;
+            var added = found.Keys.Select(n => Lib.GetByPath(IOPath.Combine(folder, names[n]))).ToList();
+            Assert(added.All(p => p != null), "the test pictures are in the library");
+            foreach (var p in added)
+            {
+                var r = await Task.Run(() => Vision.Analyze(Thumbnails.Load(p, 960, Vision.AnalyzeLongSide)));
+                people.SetResult(p, r);
+                Assert(people.IsAnalyzed(p), p.FileName + " is marked as looked at");
+            }
+            Photo Pic(string n) => added.First(p => p.FileName == names[n]);
+            var astro = Pic("astronaut.jpg");
+            var astro2 = Pic("astronaut2.jpg");
+            var camera = Pic("cameraman.jpg");
+            var everyone = people.People(id => Lib.Get(id) != null);
+            var her = everyone.SingleOrDefault(v => v.PhotoIds.Contains(astro.Id));
+            Assert(her != null && her.PhotoIds.Contains(astro2.Id), "both astronaut photos are one person");
+            Assert(!her.PhotoIds.Contains(camera.Id), "the cameraman is someone else");
+            Assert(everyone.All(v => !v.PhotoIds.Contains(camera.Id)), "someone in one photo with no name isn't listed yet");
+
+            ShowView(LibraryView.People);
+            await Idle();
+            await WaitUntil(() => Thumbnails.Get(astro, null) != null, 20000, "the face's thumbnail");
+            _peoplePage.Refresh();
+            await Idle();
+            Assert(PeopleHost.Visibility == Visibility.Visible, "the People page shows");
+            Shot("24-people");
+
+            ShowPerson(her.Person.Id);
+            await Idle();
+            AreEqual(2, _flat.Count, "her photos");
+            AreEqual("Who's this?", TitleText.Text, "no name yet");
+            var kept = people.Rename(her.Person.Id, "Eileen");
+            ShowPerson(kept.Id);
+            await Idle();
+            AreEqual("Eileen", TitleText.Text, "named");
+            await WaitForThumbs(2);
+            Shot("25-person");
+
+            var back = names.ToDictionary(kv => kv.Value, kv => kv.Key);
+            async Task<List<string>> Search(string q) { ShowView(LibraryView.Photos); SearchBox.Text = q; RebuildView(false); await Idle(); return _flat.Select(f => back.GetValueOrDefault(f.Photo.FileName, f.Photo.FileName)).ToList(); }
+            var hits = await Search("eileen");
+            Assert(hits.Contains("astronaut.jpg") && hits.Contains("astronaut2.jpg") && hits.Count == 2, "search by name: " + string.Join(", ", hits));
+            hits = await Search("cat");
+            Assert(hits.Contains("cat.jpg"), "search for cat finds the cat: " + string.Join(", ", hits));
+            Assert(!hits.Contains("coffee.jpg"), "but not the coffee");
+            hits = await Search("cats");
+            Assert(hits.Contains("cat.jpg"), "plurals work");
+            hits = await Search("coffee");
+            Assert(hits.Contains("coffee.jpg"), "search for coffee finds the espresso");
+            hits = await Search("tripod");
+            Assert(hits.Contains("cameraman.jpg"), "search for tripod");
+
+            // 3. Corrections: not them, same person, hide
+            people.NotThisPerson(kept.Id, new[] { astro2.Id });
+            Assert(!people.PhotosOf(kept.Id).Contains(astro2.Id), "Not them takes the photo out");
+            var newcomer = people.PeopleIn(astro2.Id).Single();
+            Assert(newcomer.Id != kept.Id, "the face goes to someone new");
+            people.Merge(newcomer.Id, kept.Id);
+            Assert(people.PhotosOf(kept.Id).Contains(astro2.Id), "Same person as puts it back");
+            people.SetHidden(kept.Id, true);
+            Assert(people.People(id => Lib.Get(id) != null).All(v => v.Person.Id != kept.Id), "hidden people aren't listed");
+            people.SetHidden(kept.Id, false);
+            var cam = people.PeopleIn(camera.Id).Single();
+            people.Rename(cam.Id, "eileen");
+            Assert(people.PhotosOf(kept.Id).Contains(camera.Id) && people.GetPerson(cam.Id) == null, "giving someone an existing name puts them together");
+            people.NotThisPerson(kept.Id, new[] { camera.Id });
+
+            // 4. Saved and loaded
+            people.Save();
+            var copy = new PeopleStore(people.FilePath);
+            copy.Load();
+            AreEqual(people.Counts(), copy.Counts(), "people.json round trip");
+            Assert(copy.PhotosOf(kept.Id).Count == 2 && copy.GetPerson(kept.Id)?.Name == "Eileen", "names and groups are kept");
+            var enc = PeopleStore.Decode(PeopleStore.Encode(found["astronaut.jpg"].Faces[0].Embedding));
+            Assert(Vision.Cosine(enc, found["astronaut.jpg"].Faces[0].Embedding) > 0.995, "embeddings survive being stored as bytes");
+
+            // 5. Settings
+            ShowView(LibraryView.Settings);
+            await Idle();
+            Assert(_settingsPage.FindName("FindPeopleBox") is CheckBox { IsChecked: true }, "the setting is on by default");
+
+            // put the library back as it was
+            ShowView(LibraryView.Photos);
+            Directory.Delete(folder, true);
+            await StartScan(null);
+            await Idle();
+            people.Prune(id => Lib.Get(id) != null);
+            AreEqual(0, people.Counts().faces, "faces of removed photos are forgotten");
+        });
+
         await Test("Selecting lots of photos is easy", async () =>
         {
             ShowView(LibraryView.Photos);

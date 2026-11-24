@@ -58,6 +58,9 @@ public partial class App : Application
         var lib = new LibraryStore(SettingsService.Folder);
         lib.Load();
         LibraryStore.Current = lib;
+        var people = new PeopleStore(IOPath.Combine(SettingsService.Folder, "people.json"));
+        people.Load();
+        PeopleStore.Current = people;
 
         var win = new MainWindow();
         MainWindow = win;
@@ -128,6 +131,7 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e)
     {
         LibraryStore.Current?.Save();
+        PeopleStore.Current?.Save();
         base.OnExit(e);
     }
 

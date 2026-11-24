@@ -44,6 +44,18 @@
                 </StackPanel>
             </Border>
 
+            <!-- People and things -->
+            <Border Style="{StaticResource Panel}" Margin="0,0,0,14">
+                <StackPanel>
+                    <TextBlock Text="People and things" Style="{StaticResource SectionHeader}" Margin="0,0,0,8"/>
+                    <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,10"
+                               Text="Shutterbox looks through your photos in the background to find faces (grouped in People) and what's in each photo (so you can search for “dog” or “beach”). It all happens on this PC with small built-in models; nothing is uploaded. Locked album items are never looked at."/>
+                    <CheckBox x:Name="FindPeopleBox" Content="Find people and things in my photos" Click="Behaviour_Click"/>
+                    <TextBlock x:Name="PeopleStatus" Foreground="{DynamicResource TextTertiary}" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                    <Button Content="Forget all people…" HorizontalAlignment="Left" Margin="0,10,0,0" Click="ForgetPeople_Click"/>
+                </StackPanel>
+            </Border>
+
             <!-- Import -->
             <Border Style="{StaticResource Panel}" Margin="0,0,0,14">
                 <StackPanel>

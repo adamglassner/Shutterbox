@@ -8,7 +8,7 @@ using Shutterbox.Views;
 
 namespace Shutterbox;
 
-public enum LibraryView { Photos, Videos, Favorites, Recent, Albums, Album, Folder, Locked, Trash, Settings, Places, Place, OnThisDay }
+public enum LibraryView { Photos, Videos, Favorites, Recent, Albums, Album, Folder, Locked, Trash, Settings, Places, Place, OnThisDay, People, Person }
 public enum TimelineZoom { Years, Months, Days }
 
 public partial class MainWindow : Window
@@ -89,6 +89,7 @@ public partial class MainWindow : Window
         PreviewMouseMove += (_, _) => Vault.LastActivity = DateTime.Now;
         PreviewMouseDown += (_, _) => Vault.LastActivity = DateTime.Now;
         Lib.Changed += OnLibraryChanged;
+        InitPeople();
         SettingsService.Changed += OnSettingsChanged;
         InfoToggle.IsChecked = S.ShowInfoPanel;
         ShortcutsText.Text =
@@ -202,6 +203,7 @@ public partial class MainWindow : Window
         var otd = OnThisDayPhotos(Lib.Photos).Count();
         CountOnThisDay.Text = otd > 0 ? otd.ToString("N0") : "";
         CountTrash.Text = trash > 0 ? trash.ToString("N0") : "";
+        RefreshPeopleCount();
         CountAlbums.Text = Lib.Albums.Count > 0 ? Lib.Albums.Count.ToString("N0") : "";
         if (!_scanning)
             CardText.Text = Lib.Folders.Count == 0 ? "No folders yet"
@@ -265,6 +267,7 @@ public partial class MainWindow : Window
             "favorites" => LibraryView.Favorites,
             "recent" => LibraryView.Recent,
             "places" => LibraryView.Places,
+            "people" => LibraryView.People,
             "onthisday" => LibraryView.OnThisDay,
             "albums" => LibraryView.Albums,
             "trash" => LibraryView.Trash,
@@ -287,6 +290,7 @@ public partial class MainWindow : Window
                 LibraryView.Favorites => NavFavorites,
                 LibraryView.Recent => NavRecent,
                 LibraryView.Places or LibraryView.Place => NavPlaces,
+                LibraryView.People or LibraryView.Person => NavPeople,
                 LibraryView.OnThisDay => NavOnThisDay,
                 LibraryView.Albums => NavAlbums,
                 LibraryView.Trash => NavTrash,
@@ -298,7 +302,7 @@ public partial class MainWindow : Window
             if (target != null) target.IsChecked = true;
             else
             {
-                foreach (var r in new[] { NavPhotos, NavVideos, NavFavorites, NavRecent, NavPlaces, NavOnThisDay, NavAlbums, NavLocked, NavTrash, NavSettings }) r.IsChecked = false;
+                foreach (var r in new[] { NavPhotos, NavVideos, NavFavorites, NavRecent, NavPeople, NavPlaces, NavOnThisDay, NavAlbums, NavLocked, NavTrash, NavSettings }) r.IsChecked = false;
                 foreach (var r in AlbumNav.Children.OfType<RadioButton>().Concat(FolderNav.Children.OfType<RadioButton>())) r.IsChecked = false;
             }
         }
@@ -314,6 +318,7 @@ public partial class MainWindow : Window
         _view = view;
         _albumId = view == LibraryView.Album ? albumId : null;
         _folder = view == LibraryView.Folder ? folder : null;
+        if (view != LibraryView.Person) _personId = null;
         SyncNav();
         ClearSelection();
         _suppressSearch = true;
@@ -338,6 +343,7 @@ public partial class MainWindow : Window
             PlacesHost.Visibility = Visibility.Visible;
         }
         else PlacesHost.Visibility = Visibility.Collapsed;
+        ShowPeopleHost(view == LibraryView.People);
         GateError.Visibility = Visibility.Collapsed;
         GatePassword.Clear();
         ApplyInfoPanelVisibility();
@@ -374,6 +380,18 @@ public partial class MainWindow : Window
             PlacesHost.Visibility = none ? Visibility.Collapsed : Visibility.Visible;
             UpdateHeader();
             UpdateEmptyState();
+            UpdateSelectionUi();
+            return;
+        }
+        if (_view == LibraryView.People)
+        {
+            Timeline.Visibility = Visibility.Collapsed;
+            EmptyState.Visibility = Visibility.Collapsed;
+            Banner.Visibility = Visibility.Collapsed;
+            _flat = new();
+            _indexOf.Clear();
+            _peoplePage?.Refresh();
+            UpdateHeader();
             UpdateSelectionUi();
             return;
         }
@@ -442,6 +460,9 @@ public partial class MainWindow : Window
                 return _placePhotos.Where(p => !p.IsTrashed && Lib.Get(p.Id) != null).OrderByDescending(p => p.Taken);
             case LibraryView.OnThisDay:
                 return OnThisDayPhotos(all).OrderByDescending(p => p.Taken);
+            case LibraryView.Person:
+                var ofPerson = PeopleStore.Current?.PhotosOf(_personId) ?? new List<string>();
+                return ofPerson.Select(id => Lib.Get(id)).Where(p => p != null && !p.IsTrashed).OrderByDescending(p => p.Taken);
             case LibraryView.Recent:
                 var since = DateTime.Now.AddDays(-30);
                 return all.Where(p => !p.IsTrashed && p.Added >= since).OrderByDescending(p => p.Added.Date).ThenByDescending(p => p.Taken);
@@ -468,10 +489,15 @@ public partial class MainWindow : Window
                 if (!albumNames.TryGetValue(id, out var l)) albumNames[id] = l = new List<string>();
                 l.Add(a.Name);
             }
+        var people = PeopleStore.Current;
         return photos.Where(p =>
         {
             var text = p.IsLocked ? Vault.SearchText(p) : ItemFor(p).SearchText(albumNames.TryGetValue(p.Id, out var names) ? names : null);
-            return tokens.All(t => text.Contains(t));
+            if (tokens.All(t => text.Contains(t))) return true;
+            if (p.IsLocked || people == null) return false;
+            // what's in the photo and who's in it (worked out in the background, so not cached with the rest)
+            var seen = people.SearchWords(p.Id);
+            return seen.Count > 0 && tokens.All(t => text.Contains(t) || PeopleStore.WordMatches(seen, t));
         });
     }
 
@@ -557,7 +583,7 @@ public partial class MainWindow : Window
     /// <summary>Search, zoom and slideshow only show where they make sense (not on the lock screen, settings or the album grid).</summary>
     private void UpdateHeaderControls()
     {
-        bool timeline = _view is not (LibraryView.Albums or LibraryView.Settings or LibraryView.Places);
+        bool timeline = _view is not (LibraryView.Albums or LibraryView.Settings or LibraryView.Places or LibraryView.People);
         bool gated = _view == LibraryView.Locked && !Vault.IsUnlocked;
         ZoomBox.Visibility = timeline && _view != LibraryView.Locked ? Visibility.Visible : Visibility.Collapsed;
         SlideshowBtn.Visibility = timeline && !gated ? Visibility.Visible : Visibility.Collapsed;
@@ -730,6 +756,10 @@ public partial class MainWindow : Window
                 var placed = _placesMap?.PlaceCount ?? 0;
                 title = "Places"; sub = placed == 0 ? "" : $"{items(placed)} with a location · drag to move, scroll to zoom, click a pin to see its photos"; break;
             case LibraryView.Place: title = _placeName ?? "Place"; sub = items(n); break;
+            case LibraryView.People: (title, sub) = PeopleHeader(); break;
+            case LibraryView.Person:
+                var person = PeopleStore.Current?.GetPerson(_personId);
+                title = string.IsNullOrEmpty(person?.Name) ? "Who's this?" : person.Name; sub = items(n); break;
             case LibraryView.OnThisDay: title = "On this day"; sub = n == 0 ? "" : items(n) + $" from {DateTime.Today:MMMM d} in earlier years"; break;
             case LibraryView.Albums: title = "Albums"; sub = Lib.Albums.Count == 1 ? "1 album" : $"{Lib.Albums.Count} albums"; break;
             case LibraryView.Album:
@@ -746,7 +776,7 @@ public partial class MainWindow : Window
             default: title = "Photos"; sub = photos(n); break;
         }
         var q = SearchBox.Text.Trim();
-        if (q.Length > 0 && _view is not (LibraryView.Albums or LibraryView.Settings)) sub = $"{photos(n)} match “{q}”";
+        if (q.Length > 0 && _view is not (LibraryView.Albums or LibraryView.Settings or LibraryView.People)) sub = $"{photos(n)} match “{q}”";
         if (Lib.Folders.Count == 0 && _view is LibraryView.Photos or LibraryView.Recent or LibraryView.Favorites) sub = "";
         TitleText.Text = title;
         SubtitleText.Text = sub;
@@ -796,6 +826,9 @@ public partial class MainWindow : Window
                 Act("Show in File Explorer", () => Shell.ShowInExplorer(_folder));
                 Act("Rescan", () => _ = StartScan(new[] { _folder }));
                 break;
+            case LibraryView.Person:
+                PersonBanner(Act, out icon, out text);
+                break;
             case LibraryView.Photos when _offline.Count > 0:
                 icon = "";
                 text = $"{(_offline.Count == 1 ? "A folder isn't" : "Some folders aren't")} available right now ({string.Join(", ", _offline.Select(ShortPath))}). " +
@@ -827,7 +860,7 @@ public partial class MainWindow : Window
         }
         else if (_flat.Count == 0)
         {
-            if (q.Length > 0) { title = "No matches"; text = $"No photos match “{q}”. Search looks at names, folders, tags, captions, cameras, albums, months and years."; }
+            if (q.Length > 0) { title = "No matches"; text = $"No photos match “{q}”. Search looks at names, folders, tags, captions, cameras, albums, months, years, people's names and what's in each photo."; }
             else switch (_view)
             {
                 case LibraryView.Videos: title = "No videos yet"; text = _scanning ? "Still looking…" : "Videos in your library folders show up here, apart from your photos. Import them from a phone or camera, or add a folder that has them."; break;
@@ -837,6 +870,7 @@ public partial class MainWindow : Window
                 case LibraryView.Recent: title = "Nothing new"; text = "Photos added to your library in the last 30 days show up here."; break;
                 case LibraryView.Places: title = "No places yet"; text = "Photos with a location (most phones add one when location is on) show up on a map here."; break;
                 case LibraryView.Place: title = "Nothing here now"; text = "These photos were deleted or moved to Trash."; break;
+                case LibraryView.Person: title = "Nothing here now"; text = "This person's photos were deleted or moved to Trash."; break;
                 case LibraryView.OnThisDay: title = "Nothing on this day"; text = "Photos and videos taken on today's date in earlier years show up here."; break;
                 case LibraryView.Album: title = "This album is empty"; text = "Select photos and choose Add to album, or drag them onto the album in the sidebar."; break;
                 case LibraryView.Trash: title = "Trash is empty"; text = "Photos you delete wait here until you empty the Trash."; break;
