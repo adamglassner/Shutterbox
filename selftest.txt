@@ -1,0 +1,53 @@
+Shutterbox 0.6.0 self-test
+INFO window 1044×788, content 1440×900, screen 1024×768
+PASS Dates from file names (28 ms)
+PASS Empty library (182 ms)
+PASS Make sample photos (975 ms)
+INFO exposure 1/500 · f/1.7 · ISO 50; focal 6.9; lens ; location 36.2398° N, 121.8155° W
+PASS Read photo details (15 ms)
+PASS Add folder and scan (350 ms)
+PASS Timeline groups by day, month and year (1143 ms)
+PASS Thumbnails (138 ms)
+PASS Select and details (765 ms)
+PASS Search (1098 ms)
+PASS Favorites (908 ms)
+PASS Tags and captions (327 ms)
+PASS Albums (1412 ms)
+PASS Rotate (83 ms)
+PASS Trash, restore and empty (2345 ms)
+PASS Library is saved (14 ms)
+PASS Rescan notices new, changed and deleted files (334 ms)
+INFO video: 160×120, length 0:03, date from name
+INFO video still made by Windows: no (not available on this machine)
+INFO video playback on the build machine: plays
+PASS Videos have their own section (2595 ms)
+INFO Windows Hello available on the build machine: False
+PASS Locked album: set up, add, lock and unlock (2441 ms)
+PASS Locked album: tampering is detected (57 ms)
+PASS Locked album: restore and delete (38 ms)
+PASS Locked album: move to a cloud folder and open it on another PC (621 ms)
+PASS Locked album 0.4.0: details, search, an album with its own PIN, wrong guesses (991 ms)
+PASS Locked album 0.4.0: opens an album the phone format describes, and makes one it can check (564 ms)
+PASS Places and On this day (2343 ms)
+INFO astronaut.jpg face 0: cosine with the reference 1.000
+INFO astronaut.jpg: puck 0.21, stethoscope 0.18, sweatshirt 0.07
+INFO astronaut2.jpg face 0: cosine with the reference 1.000
+INFO astronaut2.jpg: stethoscope 0.15, jersey 0.09, sweatshirt 0.09
+INFO cameraman.jpg face 0: cosine with the reference 1.000
+INFO cameraman.jpg: tripod 0.91
+INFO cat.jpg: egyptian cat 0.74, tiger cat 0.13, tabby 0.11
+INFO coffee.jpg: espresso 0.36, consomme 0.31, cup 0.12, soup bowl 0.09
+INFO same person 0.941, different people 0.197
+PASS People and things (on this PC) (3820 ms)
+PASS Selecting lots of photos is easy (614 ms)
+PASS Locked album: albums inside it (427 ms)
+PASS Copy to Locked and Move to Locked (522 ms)
+PASS Import from a camera card (578 ms)
+PASS Viewer (1508 ms)
+PASS Slideshow of an album (299 ms)
+PASS Settings page (709 ms)
+PASS Light theme (766 ms)
+PASS Remove folder (576 ms)
+INFO last picture error: broken.jpg: InvalidOperationException: NotSupportedException: No imaging component suitable to complete this operation was found. / NotSupportedException: No imaging component suitable to complete this operation was found.
+
+34 passed, 0 failed
