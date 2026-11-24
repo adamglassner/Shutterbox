@@ -133,12 +133,12 @@ void main() {
     test('places group photos taken close together', () {
       final items = [
         Item(id: 'a', name: 'a.jpg', taken: DateTime(2026), latitude: 45.5231, longitude: -122.6765),
-        Item(id: 'b', name: 'b.jpg', taken: DateTime(2026), latitude: 45.5232, longitude: -122.6766),
+        Item(id: 'b', name: 'b.jpg', taken: DateTime(2026), latitude: 45.5260, longitude: -122.6800),
         Item(id: 'c', name: 'c.jpg', taken: DateTime(2026), latitude: 48.8566, longitude: 2.3522),
       ];
       expect(clusterItems(items, 4).map((c) => c.items.length), [2, 1]);
       expect(clusterItems(items, 18).length, 3); // close enough together only when zoomed out
-      expect(clusterItems(items, 4).first.center.latitude, closeTo(45.52315, 1e-6));
+      expect(clusterItems(items, 4).first.center.latitude, closeTo(45.52455, 1e-6));
     });
 
     test('recently added is newest first', () {
