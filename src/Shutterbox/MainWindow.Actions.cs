@@ -16,7 +16,8 @@ public partial class MainWindow
     {
         if (photos.Count == 0) return;
         bool on = !photos.All(p => p.Favorite);
-        Lib.SetFavorite(photos, on);
+        foreach (var p in photos.Where(p => p.IsLocked)) Vault.SetDetails(p, favorite: on);
+        if (photos.Any(p => !p.IsLocked)) Lib.SetFavorite(photos.Where(p => !p.IsLocked).ToList(), on);
         if (photos.Count > 1) ShowToast(on ? $"Added {photos.Count:N0} photos to Favorites" : $"Removed {photos.Count:N0} photos from Favorites");
     }
 
@@ -254,12 +255,32 @@ public partial class MainWindow
         var one = photos[0];
         var m = NewMenu(target);
         m.Placement = PlacementMode.Bottom;
+        if (one.IsLocked)
+        {
+            // share for a moment: decrypted copies, deleted when the Locked album locks or Shutterbox closes
+            Item(m, "", "Copy file (temporary decrypted copy)", () => ShareLocked(photos, open: false));
+            Item(m, "", "Open with… (temporary decrypted copy)", () => ShareLocked(photos.Take(1).ToList(), open: true));
+            m.IsOpen = true;
+            return;
+        }
         Item(m, "", "Copy file", () => CopyPhotos(photos));
         Item(m, "", "Copy picture", () => CopyImage(one));
         Item(m, "", "Show in File Explorer", () => Shell.ShowInExplorer(one.Path));
         Item(m, "", "Open with…", () => Shell.OpenWith(one.Path));
         Item(m, "", "Set as desktop background", () => ShowToast(Shell.SetWallpaper(one.Path) ? "Desktop background changed" : "Couldn't set the desktop background"));
         m.IsOpen = true;
+    }
+
+    private async void ShareLocked(List<Photo> photos, bool open)
+    {
+        try
+        {
+            var files = await Vault.DecryptToShareAsync(photos);
+            if (open) Shell.OpenWith(files[0]);
+            else if (Shell.CopyFiles(files))
+                ShowToast($"Copied {(files.Count == 1 ? "a decrypted copy" : $"{files.Count:N0} decrypted copies")}. Paste {(files.Count == 1 ? "it" : "them")} where you need it; the copies are deleted when the Locked album locks.");
+        }
+        catch (Exception ex) { ShowToast("Couldn't decrypt: " + ex.Message); }
     }
 
     private void ShowFolderMenu(string folder, FrameworkElement target)

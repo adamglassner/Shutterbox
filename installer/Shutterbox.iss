@@ -72,6 +72,15 @@ Source: "{#PublishDir}\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Comment: "Photo organizer"; Check: not NoIconsRequested
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Comment: "Photo organizer"; Tasks: desktopicon
 
+[Registry]
+; "Lock with Shutterbox" when you right-click photos and videos in File Explorer (Windows 11: under "Show more options")
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\image\shell\ShutterboxLock"; ValueType: string; ValueName: ""; ValueData: "Lock with Shutterbox"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\image\shell\ShutterboxLock"; ValueType: string; ValueName: "Icon"; ValueData: """{app}\{#MyAppExeName}"",0"
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\image\shell\ShutterboxLock\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" --lock ""%1"""
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\video\shell\ShutterboxLock"; ValueType: string; ValueName: ""; ValueData: "Lock with Shutterbox"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\video\shell\ShutterboxLock"; ValueType: string; ValueName: "Icon"; ValueData: """{app}\{#MyAppExeName}"",0"
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\video\shell\ShutterboxLock\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" --lock ""%1"""
+
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
 

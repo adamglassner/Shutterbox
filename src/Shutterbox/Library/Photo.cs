@@ -51,6 +51,8 @@ public sealed class Photo
     /// <summary>Set for an item in the Locked album: its id there. <see cref="Path"/> is then the encrypted file.</summary>
     [JsonIgnore] public string VaultId { get; set; }
     [JsonIgnore] public string OriginalName { get; set; }
+    /// <summary>Set for an item in one of the Locked album's albums with its own PIN: that album's id.</summary>
+    [JsonIgnore] public string ProtectedIn { get; set; }
     [JsonIgnore] public bool IsLocked => VaultId != null;
 
     [JsonIgnore] public string FileName => OriginalName ?? IOPath.GetFileName(Path);

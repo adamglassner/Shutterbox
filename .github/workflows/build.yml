@@ -9,9 +9,9 @@ on:
   push:
     branches: ['**']
     tags: ['v*.*.*']
-    paths-ignore: ['mobile/**', '.github/workflows/android.yml']
+    paths-ignore: ['mobile/lib/**', 'mobile/test/*.dart', 'mobile/android-res/**', 'mobile/pubspec.yaml', 'mobile/CHANGELOG.md', '.github/workflows/android.yml']
   pull_request:
-    paths-ignore: ['mobile/**', '.github/workflows/android.yml']
+    paths-ignore: ['mobile/lib/**', 'mobile/test/*.dart', 'mobile/android-res/**', 'mobile/pubspec.yaml', 'mobile/CHANGELOG.md', '.github/workflows/android.yml']
   workflow_dispatch:
 
 permissions:
@@ -74,6 +74,9 @@ jobs:
           New-Item -ItemType Directory -Force screenshots | Out-Null
           $out = Join-Path $env:RUNNER_TEMP 'selftest.txt'
           $shots = Join-Path $PWD 'screenshots'
+          # the Locked album format: open the reference album (made by mobile/tool/vault_ref.py) and make one it checks
+          $env:SHUTTERBOX_VAULT4 = Join-Path $PWD 'mobile/test/fixtures/vault4'
+          $env:SHUTTERBOX_EXPORT = Join-Path $env:RUNNER_TEMP 'windows-locked-album'
           $p = Start-Process dist/Shutterbox.exe -ArgumentList '--self-test', "`"$out`"", "`"$shots`"" -PassThru
           if (-not $p.WaitForExit(480000)) { Stop-Process -Id $p.Id -Force; Write-Host '::error::Self-test timed out' }
           if (Test-Path $out) { $lines = Get-Content $out; $lines | Write-Host } else { $lines = @('(no output file)') }
@@ -82,6 +85,13 @@ jobs:
           $err = Join-Path $env:APPDATA 'Shutterbox\error.log'
           if (Test-Path $err) { Get-Content $err | Write-Host; Write-Host '::error::error.log was written' ; exit 1 }
           if ($p.ExitCode -ne 0) { throw "Self-test failed (exit code $($p.ExitCode))" }
+
+      - name: The phone's format checks the Locked album Windows made
+        shell: pwsh
+        run: |
+          python -m pip install --quiet cryptography
+          python mobile/tool/vault_ref.py check4 (Join-Path $env:RUNNER_TEMP 'windows-locked-album')
+          if ($LASTEXITCODE -ne 0) { throw "The Locked album Windows made doesn't match the format" }
 
       - name: Share screenshots on the ci-shots branch (work branches only)
         if: always() && github.event_name == 'push' && github.ref != 'refs/heads/main'

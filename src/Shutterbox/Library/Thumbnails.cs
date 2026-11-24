@@ -161,7 +161,7 @@ public static class Thumbnails
         if (p.IsLocked)
         {
             // Locked album: decrypted in memory only, never cached on disk
-            var bytes = Vault.ReadThumb(p.VaultId);
+            var bytes = Vault.ReadThumb(p.VaultId, p.ProtectedIn);
             if (bytes != null) return Upright(LoadBytes(bytes, 0, 0), new Photo { Rotation = p.Rotation });
             return p.IsVideo ? null : Load(p, CachePixels);
         }
@@ -196,7 +196,7 @@ public static class Thumbnails
             // A still from the video, made by Windows (the same one File Explorer shows)
             if (p.IsLocked)
             {
-                var t = Vault.ReadThumb(p.VaultId);
+                var t = Vault.ReadThumb(p.VaultId, p.ProtectedIn);
                 if (t == null) throw new InvalidOperationException("No still for this video.");
                 return LoadBytes(t, 0, 0);
             }
@@ -220,7 +220,7 @@ public static class Thumbnails
         {
             decodeW = shortSide * 2;
         }
-        BitmapSource src = p.IsLocked ? LoadBytes(Vault.ReadBytes(p.VaultId), decodeW, decodeH) : LoadFile(p.Path, decodeW, decodeH);
+        BitmapSource src = p.IsLocked ? LoadBytes(Vault.ReadBytes(p.VaultId, p.ProtectedIn), decodeW, decodeH) : LoadFile(p.Path, decodeW, decodeH);
         return Upright(src, p);
     }
 

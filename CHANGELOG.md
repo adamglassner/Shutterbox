@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.0
+
+Locked album:
+
+- **Works on a PC and a phone at once through a cloud folder.** Each item's details now have their own encrypted file, so changes made on different devices merge instead of overwriting each other (sync apps' conflict copies are sorted out too). It's the same format as Shutterbox for Android. Albums from 0.3.0 open as before, and 0.3.0 can still read what's added.
+- **Kept out of screenshots, recordings and screen sharing** while it's unlocked (on by default).
+- **Lock it when you leave:** when Shutterbox is minimized, you switch to another app or Windows locks (optional). **Ctrl+Alt+L** anywhere locks it and hides Shutterbox.
+- **Hide Locked in the sidebar:** open it with Ctrl+Shift+L, or by typing your PIN or password in search and pressing Enter.
+- **Lock with Shutterbox** when you right-click photos and videos in File Explorer (Windows 11: Show more options).
+- **Share for a moment:** Copy or Open with… makes temporary decrypted copies, deleted when it locks.
+- **Wrong guesses:** after 5 wrong guesses in a row Shutterbox makes you wait, longer each time; every wrong guess on any device is logged, and you're told about them when you unlock. Optionally, the camera **photographs wrong guesses**, encrypted so only you can see them.
+- **Albums with their own PIN or password**, re-encrypted with their own key.
+- **Captions, tags, favorites and search** for Locked album items, all encrypted.
+- **Check the album** (every file decrypts) and **get a new recovery key** in Settings.
+
 ## 0.3.0 (2026-11-22)
 
 - **Albums inside the Locked album.** Tabs at the top of the Locked album: All, your albums, and New album. Add locked items to albums, remove them, rename or delete an album (its items stay in the Locked album). Album names are encrypted with everything else and only show while it's unlocked.

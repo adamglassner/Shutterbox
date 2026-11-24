@@ -7,16 +7,39 @@ namespace Shutterbox.Views;
 /// <summary>Sets up the Locked album (PIN or password, then the recovery key and Windows Hello), or changes the PIN/password.</summary>
 public partial class LockSetupDialog : Window
 {
-    public enum Mode { SetUp, Change }
+    public enum Mode { SetUp, Change, Album, NewRecoveryKey }
 
     private readonly Mode _mode;
     public string RecoveryKey { get; private set; }
+    /// <summary>For <see cref="Mode.Album"/>: what was chosen.</summary>
+    public string Secret { get; private set; }
+    public string SecretKind { get; private set; }
 
-    public LockSetupDialog(Mode mode)
+    public LockSetupDialog(Mode mode, string albumName = null)
     {
         InitializeComponent();
         ThemeManager.Attach(this);
         _mode = mode;
+        if (mode == Mode.Album)
+        {
+            HeadingText.Text = $"A PIN for “{albumName}”";
+            IntroText.Text = "Its items are re-encrypted with a key only this PIN or password opens, on top of the Locked album's own. " +
+                             "If you forget it they can't be recovered: the recovery key doesn't open it.";
+            NextBtn.Content = "Set";
+        }
+        if (mode == Mode.NewRecoveryKey)
+        {
+            HeadingText.Text = "Your new recovery key";
+            StepSecret.Visibility = Visibility.Collapsed;
+            StepRecovery.Visibility = Visibility.Visible;
+            HelloBox.Visibility = Visibility.Collapsed;
+            Loaded += async (_, _) =>
+            {
+                try { RecoveryKey = await Task.Run(Vault.NewRecoveryKey); RecoveryText.Text = RecoveryKey; }
+                catch (Exception ex) { RecoveryText.Text = ex.Message; }
+            };
+            return;
+        }
         if (mode == Mode.Change)
         {
             HeadingText.Text = "Change PIN or password";
@@ -70,6 +93,13 @@ public partial class LockSetupDialog : Window
         NextBtn.IsEnabled = false;
         try
         {
+            if (_mode == Mode.Album)
+            {
+                Secret = a;
+                SecretKind = kind;
+                DialogResult = true;
+                return;
+            }
             if (_mode == Mode.Change)
             {
                 await Task.Run(() => Vault.ChangeSecret(a, kind));
@@ -95,7 +125,7 @@ public partial class LockSetupDialog : Window
 
     private async void Done_Click(object sender, RoutedEventArgs e)
     {
-        if (HelloBox.IsChecked == true && HelloBox.IsEnabled)
+        if (HelloBox.IsChecked == true && HelloBox.IsEnabled && HelloBox.Visibility == Visibility.Visible)
         {
             DoneBtn.IsEnabled = false;
             var problem = await WindowsHello.TurnOnAsync();

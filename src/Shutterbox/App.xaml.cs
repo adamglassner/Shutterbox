@@ -1,3 +1,4 @@
+using System.IO.Pipes;
 using Shutterbox.Library;
 using Shutterbox.Services;
 
@@ -12,10 +13,29 @@ public partial class App : Application
     public static bool IsSelfTest => SelfTestOutput != null;
     internal static string TestName = "(starting)";
 
+    private static Mutex _instance;
+    private static string PipeName => "Shutterbox-lock-" + Environment.UserName;
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
         DispatcherUnhandledException += OnUnhandled;
+
+        // "Lock with Shutterbox" from File Explorer: Shutterbox.exe --lock <file> (one process per file)
+        var toLock = new List<string>();
+        int li = Array.FindIndex(e.Args, a => a.Equals("--lock", StringComparison.OrdinalIgnoreCase));
+        if (li >= 0) toLock.AddRange(e.Args.Skip(li + 1).Where(a => !a.StartsWith("--")));
+        bool selfTest = e.Args.Any(a => a.Equals("--self-test", StringComparison.OrdinalIgnoreCase));
+        if (!selfTest)
+        {
+            _instance = new Mutex(true, "Shutterbox-instance-" + Environment.UserName, out bool first);
+            if (!first)
+            {
+                // Shutterbox is already open: hand the files to it (or just bring it forward)
+                if (SendToRunning(toLock)) { Shutdown(); return; }
+            }
+            else StartPipeServer();
+        }
 
         int st = Array.FindIndex(e.Args, a => a.Equals("--self-test", StringComparison.OrdinalIgnoreCase));
         if (st >= 0)
@@ -42,6 +62,67 @@ public partial class App : Application
         var win = new MainWindow();
         MainWindow = win;
         win.Show();
+        if (toLock.Count > 0) win.Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() => win.LockFilesFromExplorer(toLock)));
+    }
+
+    /// <summary>Sends files to the Shutterbox that's already running. False when it couldn't be reached.</summary>
+    private static bool SendToRunning(List<string> files)
+    {
+        for (int attempt = 0; attempt < 10; attempt++)
+        {
+            try
+            {
+                using var pipe = new NamedPipeClientStream(".", PipeName, PipeDirection.Out);
+                pipe.Connect(500);
+                using var w = new StreamWriter(pipe);
+                w.Write(string.Join("\n", files.Select(f => IOPath.GetFullPath(f))));
+                return true;
+            }
+            catch { Thread.Sleep(300); }
+        }
+        return false;
+    }
+
+    /// <summary>Listens for files from other Shutterbox processes (each Explorer "Lock with Shutterbox" starts one); batches them.</summary>
+    private void StartPipeServer()
+    {
+        var pending = new List<string>();
+        DispatcherTimer batch = null;
+        Task.Run(async () =>
+        {
+            while (true)
+            {
+                try
+                {
+                    using var pipe = new NamedPipeServerStream(PipeName, PipeDirection.In, 4, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+                    await pipe.WaitForConnectionAsync();
+                    using var r = new StreamReader(pipe);
+                    var text = await r.ReadToEndAsync();
+                    var files = text.Split('\n', StringSplitOptions.RemoveEmptyEntries).ToList();
+                    await Dispatcher.InvokeAsync(() =>
+                    {
+                        if (MainWindow is not Shutterbox.MainWindow win) return;
+                        if (files.Count == 0)
+                        {
+                            if (win.WindowState == WindowState.Minimized) win.WindowState = WindowState.Normal;
+                            win.Activate();
+                            return;
+                        }
+                        lock (pending) pending.AddRange(files);
+                        batch ??= new DispatcherTimer(TimeSpan.FromMilliseconds(700), DispatcherPriority.Normal, (_, _) =>
+                        {
+                            batch.Stop();
+                            List<string> all;
+                            lock (pending) { all = pending.ToList(); pending.Clear(); }
+                            win.LockFilesFromExplorer(all);
+                        }, Dispatcher);
+                        batch.Stop();
+                        batch.Start();
+                    });
+                }
+                catch { await Task.Delay(500); }
+            }
+        });
     }
 
     protected override void OnExit(ExitEventArgs e)

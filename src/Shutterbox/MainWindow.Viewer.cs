@@ -87,9 +87,9 @@ public partial class MainWindow
         _viewPhoto = p;
         _fullLoaded = false;
         ResetZoom();
-        // Locked items can't be edited, shared or favorited; videos don't zoom
-        var plain = p.IsLocked ? Visibility.Collapsed : Visibility.Visible;
-        ViewerFavBtn.Visibility = ViewerEditBtn.Visibility = ViewerShareBtn.Visibility = plain;
+        // Locked items can't be edited in place (they're shared as temporary decrypted copies); videos don't zoom
+        ViewerEditBtn.Visibility = p.IsLocked ? Visibility.Collapsed : Visibility.Visible;
+        ViewerFavBtn.Visibility = ViewerShareBtn.Visibility = Visibility.Visible;
         var still = p.IsVideo ? Visibility.Collapsed : Visibility.Visible;
         ViewerZoomInBtn.Visibility = ViewerZoomOutBtn.Visibility = ViewerRotateBtn.Visibility = still;
 
@@ -364,8 +364,9 @@ public partial class MainWindow
     private void ViewerFavorite_Click(object sender, RoutedEventArgs e)
     {
         var p = _viewPhoto;
-        if (p == null || p.IsLocked) return;
-        Lib.SetFavorite(new[] { p }, !p.Favorite);
+        if (p == null) return;
+        if (p.IsLocked) Vault.SetDetails(p, favorite: !p.Favorite);
+        else Lib.SetFavorite(new[] { p }, !p.Favorite);
         ViewerFavBtn.Content = p.Favorite ? "" : "";
         ViewerFavBtn.Foreground = p.Favorite ? (Brush)FindResource("Accent") : (Brush)FindResource("ViewerText");
     }

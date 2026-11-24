@@ -63,6 +63,8 @@ public partial class MainWindow : Window
         RestoreWindow();
         Vault.CleanTemp();
         Vault.Changed += OnVaultChanged;
+        Vault.Changed += ApplyLockedPrivacy;
+        SourceInitialized += (_, _) => ApplyLockedPrivacy();
         _autoLockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
         _autoLockTimer.Tick += (_, _) => CheckAutoLock();
         _autoLockTimer.Start();
@@ -281,6 +283,7 @@ public partial class MainWindow : Window
 
     public void ShowView(LibraryView view, string albumId = null, string folder = null)
     {
+        Dispatcher.BeginInvoke(new Action(ApplyLockedPrivacy));
         if (view == LibraryView.Album && Lib.GetAlbum(albumId) == null) view = LibraryView.Albums;
         _view = view;
         _albumId = view == LibraryView.Album ? albumId : null;
@@ -416,7 +419,7 @@ public partial class MainWindow : Window
             }
         return photos.Where(p =>
         {
-            var text = ItemFor(p).SearchText(albumNames.TryGetValue(p.Id, out var names) ? names : null);
+            var text = p.IsLocked ? Vault.SearchText(p) : ItemFor(p).SearchText(albumNames.TryGetValue(p.Id, out var names) ? names : null);
             return tokens.All(t => text.Contains(t));
         });
     }
@@ -1059,6 +1062,7 @@ public partial class MainWindow : Window
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (ViewerLayer.Visibility == Visibility.Visible) { ViewerKey(e); return; }
+        if (PrivacyKey(e)) return;
         var mods = Keyboard.Modifiers;
         bool ctrl = mods.HasFlag(ModifierKeys.Control);
         bool inText = Keyboard.FocusedElement is TextBox;
@@ -1171,7 +1175,13 @@ public partial class MainWindow : Window
 
     private void Search_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Enter) { RebuildView(false); e.Handled = true; }
+        if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            var text = SearchBox.Text;
+            RebuildView(false);
+            _ = TrySearchUnlockAsync(text);
+        }
         else if (e.Key == Key.Down && _flat.Count > 0) { Keyboard.Focus(this); MoveTo(0, ModifierKeys.None); e.Handled = true; }
     }
 
@@ -1317,10 +1327,10 @@ public partial class MainWindow : Window
                 ? "Windows can't show this HEIC photo yet. Install “HEIF Image Extensions” from the Microsoft Store."
                 : "Windows can't read this picture. It may be damaged or need a codec from the Microsoft Store.", true);
 
-        // Locked items keep only what's in their encrypted index: no captions, tags, albums or favorites
-        var editable = p.IsLocked ? Visibility.Collapsed : Visibility.Visible;
-        CaptionBox.Visibility = TagsLabel.Visibility = TagsPanel.Visibility = TagBox.Visibility = editable;
-        InfoEditBtn.Visibility = ShareBtn.Visibility = InfoFavBtn.Visibility = editable;
+        // Locked items keep captions, tags and favorites encrypted with them; editing needs a decrypted file, so not that
+        CaptionBox.Visibility = TagsLabel.Visibility = TagsPanel.Visibility = TagBox.Visibility = Visibility.Visible;
+        ShareBtn.Visibility = InfoFavBtn.Visibility = Visibility.Visible;
+        InfoEditBtn.Visibility = p.IsLocked ? Visibility.Collapsed : Visibility.Visible;
         if (!CaptionBox.IsKeyboardFocused || !samePhoto) CaptionBox.Text = p.Caption ?? "";
         BuildTagChips(p);
         var albums = p.IsLocked ? new List<Album>() : Lib.AlbumsOf(p).ToList();
@@ -1368,7 +1378,7 @@ public partial class MainWindow : Window
             var x = new Button { Style = (Style)FindResource("LinkButton"), Content = "", FontFamily = (FontFamily)FindResource("IconFont"), FontSize = 9,
                                  Foreground = (Brush)FindResource("TextSecondary"), Margin = new Thickness(8, 1, 0, 0), ToolTip = $"Remove “{tag}”" };
             var t = tag;
-            x.Click += (_, _) => Lib.RemoveTag(new[] { p }, t);
+            x.Click += (_, _) => { if (p.IsLocked) { Vault.SetDetails(p, tags: p.Tags.Where(y => y != t).ToList()); _infoPhoto = null; UpdateInfo(); } else Lib.RemoveTag(new[] { p }, t); };
             sp.Children.Add(x);
             var chip = new Border { Background = (Brush)FindResource("ChipBg"), CornerRadius = new CornerRadius(12), Padding = new Thickness(10, 4, 8, 4), Margin = new Thickness(0, 0, 6, 6), Child = sp };
             TagsPanel.Children.Add(chip);
@@ -1414,14 +1424,21 @@ public partial class MainWindow : Window
 
     private void CaptionBox_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
     {
-        if (_infoPhoto != null) Lib.SetCaption(_infoPhoto, CaptionBox.Text);
+        if (_infoPhoto != null) SetCaption(_infoPhoto, CaptionBox.Text);
+    }
+
+    /// <summary>Locked album items keep their caption encrypted with them.</summary>
+    private void SetCaption(Photo p, string text)
+    {
+        if (!p.IsLocked) { Lib.SetCaption(p, text); return; }
+        if ((p.Caption ?? "") != text.Trim()) Vault.SetDetails(p, caption: text);
     }
 
     private void CaptionBox_KeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Enter && _infoPhoto != null)
         {
-            Lib.SetCaption(_infoPhoto, CaptionBox.Text);
+            SetCaption(_infoPhoto, CaptionBox.Text);
             Keyboard.Focus(this);
             e.Handled = true;
         }
@@ -1430,8 +1447,16 @@ public partial class MainWindow : Window
     private void TagBox_KeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key != Key.Enter || _infoPhoto == null) return;
-        foreach (var t in TagBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-            Lib.AddTag(new[] { _infoPhoto }, t);
+        var add = TagBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (_infoPhoto.IsLocked)
+        {
+            var tags = _infoPhoto.Tags.ToList();
+            foreach (var t in add) if (!tags.Contains(t, StringComparer.OrdinalIgnoreCase)) tags.Add(t);
+            Vault.SetDetails(_infoPhoto, tags: tags);
+            _infoPhoto = null;
+            UpdateInfo();
+        }
+        else foreach (var t in add) Lib.AddTag(new[] { _infoPhoto }, t);
         TagBox.Text = "";
         e.Handled = true;
     }

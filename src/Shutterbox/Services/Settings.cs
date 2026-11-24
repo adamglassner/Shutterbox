@@ -51,6 +51,19 @@ public sealed class AppSettings
     // ---- Locked album ----
     /// <summary>Where the Locked album's folder is (empty = %APPDATA%\Shutterbox\Locked). Can be a OneDrive/Dropbox folder or a USB drive.</summary>
     public string LockedFolder { get; set; } = "";
+    /// <summary>Identifies this PC in the Locked album's log of wrong guesses.</summary>
+    public string DeviceId { get; set; } = "";
+    /// <summary>Lock it when Shutterbox is minimized, you switch to another app, or Windows locks.</summary>
+    public bool LockOnLeave { get; set; } = false;
+    /// <summary>Hide "Locked" in the sidebar (open it with Ctrl+Shift+L or by typing the PIN in search).</summary>
+    public bool HideLocked { get; set; } = false;
+    /// <summary>Keep the window out of screenshots, recordings and screen sharing while the Locked album is unlocked.</summary>
+    public bool ProtectScreen { get; set; } = true;
+    /// <summary>Ctrl+Alt+L anywhere in Windows locks it and minimizes Shutterbox.</summary>
+    public bool PanicHotkey { get; set; } = true;
+    /// <summary>Wrong guesses in a row on this PC, and until when to wait before the next.</summary>
+    public int WrongInARow { get; set; }
+    public DateTime? WaitUntil { get; set; }
 
     // ---- Viewer ----
     public int SlideshowSeconds { get; set; } = 5;
@@ -133,6 +146,7 @@ public static class SettingsService
         s.Accent ??= "Amber";
         s.LastImportSource ??= "";
         s.LockedFolder ??= "";
+        if (string.IsNullOrEmpty(s.DeviceId)) s.DeviceId = Guid.NewGuid().ToString("N")[..12];
         s.SlideshowSeconds = Math.Clamp(s.SlideshowSeconds, 2, 60);
         if (double.IsNaN(s.WinWidth) || s.WinWidth < 720) s.WinWidth = 1360;
         if (double.IsNaN(s.WinHeight) || s.WinHeight < 480) s.WinHeight = 860;

@@ -78,6 +78,14 @@ public partial class SettingsPage : UserControl
         LockedLockBtn.Visibility = setUp && open ? Visibility.Visible : Visibility.Collapsed;
         LockedOptions.Visibility = setUp ? Visibility.Visible : Visibility.Collapsed;
         LockedDeleteBtn.Visibility = setUp ? Visibility.Visible : Visibility.Collapsed;
+        ProtectScreenBox.IsChecked = S.ProtectScreen;
+        LockOnLeaveBox.IsChecked = S.LockOnLeave;
+        PanicBox.IsChecked = S.PanicHotkey;
+        HideLockedBox.IsChecked = S.HideLocked;
+        IntruderBox.IsChecked = Vault.PhotographsWrongGuesses;
+        IntruderBox.IsEnabled = LockedCheckBtn.IsEnabled = NewRecoveryBtn.IsEnabled = open;
+        var guesses = Vault.FailedAttempts;
+        GuessSummary.Text = guesses.Count == 0 ? "No wrong guesses logged." : $"{guesses.Count:N0} wrong guesses logged, the last {guesses[0].Time:dddd, MMM d, h:mm tt} on {guesses[0].Device}.";
         var info = Vault.Info;
         LockedStatus.Text = !setUp
             ? "Copy photos and videos into an encrypted album that only Shutterbox can open, with a PIN, a password or Windows Hello."
@@ -102,6 +110,50 @@ public partial class SettingsPage : UserControl
     private void LockedSetup_Click(object sender, RoutedEventArgs e) { _main.SetUpLocked(); Refresh(); }
     private void LockedOpen_Click(object sender, RoutedEventArgs e) => _main.ShowView(LibraryView.Locked);
     private void LockedLock_Click(object sender, RoutedEventArgs e) { _main.LockNow(); Refresh(); }
+
+    private void LockedPrivacy_Click(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        S.ProtectScreen = ProtectScreenBox.IsChecked == true;
+        S.LockOnLeave = LockOnLeaveBox.IsChecked == true;
+        S.PanicHotkey = PanicBox.IsChecked == true;
+        S.HideLocked = HideLockedBox.IsChecked == true;
+        SettingsService.Save();
+        _main.ApplyLockedPrivacy();
+    }
+
+    private void Intruder_Click(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        try
+        {
+            if (IntruderBox.IsChecked == true) Vault.EnableIntruderPhotos();
+            else if (_main.Confirm("Turn off photographing wrong guesses? The photos taken are deleted.", "Turn off")) Vault.DisableIntruderPhotos();
+        }
+        catch (Exception ex) { _main.ShowToast(ex.Message); }
+        Refresh();
+    }
+
+    private void WrongGuesses_Click(object sender, RoutedEventArgs e) => new WrongGuessesWindow { Owner = Window.GetWindow(this) }.ShowDialog();
+
+    private async void LockedCheck_Click(object sender, RoutedEventArgs e)
+    {
+        LockedCheckBtn.IsEnabled = false;
+        try
+        {
+            var (ok, problems) = await Vault.CheckAsync(new Progress<(int, int)>(p => _main.ShowToast($"Checking the Locked album: {p.Item1:N0} of {p.Item2:N0}…")));
+            _main.ShowToast(problems.Count == 0 ? $"All {ok:N0} items are there and decrypt correctly."
+                : $"{ok:N0} items are fine; {problems.Count:N0} {(problems.Count == 1 ? "has a problem" : "have problems")}: {string.Join("; ", problems.Take(3))}");
+        }
+        catch (Exception ex) { _main.ShowToast(ex.Message); }
+        finally { LockedCheckBtn.IsEnabled = true; }
+    }
+
+    private void NewRecovery_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_main.Confirm("Get a new recovery key?\n\nThe one you have now stops working. Save the new one somewhere safe.", "Continue")) return;
+        new LockSetupDialog(LockSetupDialog.Mode.NewRecoveryKey) { Owner = Window.GetWindow(this) }.ShowDialog();
+    }
 
     private void LockedChange_Click(object sender, RoutedEventArgs e)
     {

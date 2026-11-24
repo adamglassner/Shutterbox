@@ -93,10 +93,47 @@ public partial class MainWindow
         if (e.Key == Key.Enter) { GateUnlock_Click(null, null); e.Handled = true; }
     }
 
+    /// <summary>How long until another guess is allowed on this PC (after 5 wrong ones in a row: 30 seconds, doubling up to 15 minutes).</summary>
+    private static TimeSpan WaitLeft
+    {
+        get
+        {
+            var until = SettingsService.Current.WaitUntil;
+            return until == null || until <= DateTime.Now ? TimeSpan.Zero : until.Value - DateTime.Now;
+        }
+    }
+
+    private static TimeSpan WaitAfter(int wrong) =>
+        wrong < 5 ? TimeSpan.Zero : TimeSpan.FromSeconds(Math.Min(900, 30 * (1 << Math.Min(5, wrong - 5))));
+
+    private void GuessFailed()
+    {
+        var s = SettingsService.Current;
+        s.WrongInARow++;
+        var wait = WaitAfter(s.WrongInARow);
+        s.WaitUntil = wait == TimeSpan.Zero ? null : DateTime.Now + wait;
+        SettingsService.Save();
+        if (Vault.PhotographsWrongGuesses && !App.IsSelfTest) _ = Webcam.TakeAndSaveIntruderPhotoAsync();
+    }
+
+    private static void GuessSucceeded()
+    {
+        var s = SettingsService.Current;
+        if (s.WrongInARow == 0 && s.WaitUntil == null) return;
+        s.WrongInARow = 0;
+        s.WaitUntil = null;
+        SettingsService.Save();
+    }
+
     private async void GateUnlock_Click(object sender, RoutedEventArgs e)
     {
         var secret = GatePassword.Password;
         if (secret.Length == 0) { GatePassword.Focus(); return; }
+        if (WaitLeft > TimeSpan.Zero)
+        {
+            GateError_Show($"Too many wrong guesses. Try again in {(int)WaitLeft.TotalMinutes}:{WaitLeft.Seconds:00}.");
+            return;
+        }
         GateError_Show(null);
         IsEnabled = false;
         bool ok;
@@ -105,10 +142,13 @@ public partial class MainWindow
         GatePassword.Clear();
         if (!ok)
         {
-            GateError_Show(Vault.Info?.Kind == "PIN" ? "That PIN isn't right." : "That password isn't right.");
+            GuessFailed();
+            GateError_Show((Vault.Info?.Kind == "PIN" ? "That PIN isn't right." : "That password isn't right.") +
+                           (WaitLeft > TimeSpan.Zero ? $" Wait {(int)WaitLeft.TotalMinutes}:{WaitLeft.Seconds:00} before trying again." : ""));
             GatePassword.Focus();
             return;
         }
+        GuessSucceeded();
         AfterUnlock();
     }
 
@@ -138,7 +178,8 @@ public partial class MainWindow
         bool ok;
         try { ok = await Task.Run(() => Vault.UnlockWithRecoveryKey(key)); }
         finally { IsEnabled = true; }
-        if (!ok) { GateError_Show("That recovery key isn't right. It's the 25 letters and numbers shown when you set up the Locked album."); return; }
+        if (!ok) { GuessFailed(); GateError_Show("That recovery key isn't right. It's the 25 letters and numbers shown when you set up the Locked album."); return; }
+        GuessSucceeded();
         GateRecoveryBox.Text = "";
         _gateRecovery = false;
         AfterUnlock(silent: true);
@@ -150,6 +191,10 @@ public partial class MainWindow
     private async void AfterUnlock(bool silent = false)
     {
         Vault.LastActivity = DateTime.Now;
+        var warn = Vault.LastUnlockWarnings;
+        if (warn.Count > 0)
+            ShowToast($"{warn.Count} wrong {(warn.Count == 1 ? "guess" : "guesses")} since you last opened it. The last: {warn[0].Time:dddd h:mm tt} on {warn[0].Device}.",
+                      "See", () => new WrongGuessesWindow { Owner = this }.ShowDialog());
         if (_view != LibraryView.Locked) ShowView(LibraryView.Locked);
         else RebuildView(false);
         var pending = _pendingLock;
@@ -309,6 +354,14 @@ public partial class MainWindow
             rb.Checked += (_, _) =>
             {
                 if (_lockedAlbumId == id) return;
+                var target = Vault.GetAlbum(id);
+                if (target is { IsProtected: true, IsOpen: false } &&
+                    !SecretPrompt.Ask(this, $"“{target.Name}” has its own {(target.Protected.Kind == "PIN" ? "PIN" : "password")}",
+                        "Enter it to see what's inside.", s => Vault.UnlockAlbum(target, s)))
+                {
+                    Dispatcher.BeginInvoke(new Action(() => RebuildView(true)));
+                    return;
+                }
                 _lockedAlbumId = id;
                 ClearSelection();
                 RebuildView(false);
@@ -318,7 +371,7 @@ public partial class MainWindow
         LockedAlbumBar.Children.Add(Tab("All", null, Vault.Count));
         foreach (var a in Vault.Albums.OrderBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase))
         {
-            var tab = Tab(a.Name, a.Id, Vault.PhotosIn(a).Count());
+            var tab = a.IsProtected && !a.IsOpen ? Tab(a.Name + "  ·  locked", a.Id, -1) : Tab(a.Name, a.Id, Vault.PhotosIn(a).Count());
             var album = a;
             tab.MouseRightButtonUp += (s, e) => { ShowLockedAlbumOptions(album, (FrameworkElement)s); e.Handled = true; };
             tab.ToolTip = "Right-click to rename or delete";
@@ -364,12 +417,35 @@ public partial class MainWindow
             var name = InputDialog.Ask(this, "Rename album", "Name", null, a.Name);
             if (name != null) { Vault.RenameAlbum(a, name); RebuildView(true); }
         });
-        Item(m, "\uE74D", "Delete album", () =>
+        if (!a.IsProtected)
+            Item(m, "\uE72E", "Give it its own PIN…", () =>
+            {
+                var dlg = new LockSetupDialog(LockSetupDialog.Mode.Album, a.Name) { Owner = this };
+                if (dlg.ShowDialog() != true) return;
+                Vault.ProtectAlbum(a, dlg.Secret, dlg.SecretKind);
+                ShowToast($"“{a.Name}” now has its own {(dlg.SecretKind == "PIN" ? "PIN" : "password")}.");
+            });
+        else if (a.IsOpen)
         {
-            if (!Confirm($"Delete the album “{a.Name}”?\n\nIts photos and videos stay in the Locked album (under All).", "Delete album")) return;
-            if (_lockedAlbumId == a.Id) _lockedAlbumId = null;
-            Vault.DeleteAlbum(a);
-        });
+            Item(m, "\uE72E", "Lock this album", () => { if (_lockedAlbumId == a.Id) _lockedAlbumId = null; Vault.LockAlbum(a); });
+            Item(m, "\uE8D7", "Change its PIN…", () =>
+            {
+                var dlg = new LockSetupDialog(LockSetupDialog.Mode.Album, a.Name) { Owner = this };
+                if (dlg.ShowDialog() == true) { Vault.ChangeAlbumSecret(a, dlg.Secret, dlg.SecretKind); ShowToast("Changed."); }
+            });
+            Item(m, "\uE785", "Take its PIN off", () =>
+            {
+                if (Confirm($"Take the PIN off “{a.Name}”?\n\nIts items are re-encrypted with the Locked album's key and open whenever the Locked album does.", "Take it off"))
+                    Vault.UnprotectAlbum(a);
+            });
+        }
+        if (!a.IsProtected || a.IsOpen)
+            Item(m, "\uE74D", "Delete album", () =>
+            {
+                if (!Confirm($"Delete the album “{a.Name}”?\n\nIts photos and videos stay in the Locked album (under All).", "Delete album")) return;
+                if (_lockedAlbumId == a.Id) _lockedAlbumId = null;
+                Vault.DeleteAlbum(a);
+            });
         m.IsOpen = true;
     }
 
@@ -378,13 +454,13 @@ public partial class MainWindow
     {
         var m = NewMenu(target);
         m.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
-        foreach (var a in Vault.Albums.OrderBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase))
+        foreach (var a in Vault.Albums.Where(a => !a.IsProtected || a.IsOpen))
         {
             var album = a;
-            Item(m, "\uE8B9", a.Name, () =>
+            Item(m, "\uE8B9", a.IsProtected ? a.Name + " (moves them in)" : a.Name, () =>
             {
-                int n = Vault.AddToAlbum(album, photos);
-                ShowToast(n == 0 ? $"Already in “{album.Name}”" : $"Added {n:N0} to “{album.Name}”");
+                int n = Vault.AddToAlbum(album, photos.Where(p => p.ProtectedIn == null));
+                ShowToast(n == 0 ? $"Already in “{album.Name}”" : $"{(album.IsProtected ? "Moved" : "Added")} {n:N0} to “{album.Name}”");
             });
         }
         if (Vault.Albums.Count > 0) m.Items.Add(new Separator());
@@ -406,7 +482,7 @@ public partial class MainWindow
     {
         void Add(string glyph, string text, bool move, string tip)
         {
-            var albums = Vault.IsUnlocked ? Vault.Albums.OrderBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase).ToList() : new List<VaultAlbum>();
+            var albums = Vault.IsUnlocked ? Vault.Albums.Where(a => !a.IsProtected || a.IsOpen).ToList() : new List<VaultAlbum>();
             if (albums.Count == 0)
             {
                 var mi = Item(menu, glyph, text, () => AddToLocked(photos, move));

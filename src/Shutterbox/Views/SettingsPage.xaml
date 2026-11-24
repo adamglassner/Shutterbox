@@ -93,6 +93,20 @@
                             </ComboBox>
                         </StackPanel>
 
+                        <TextBlock Text="Privacy" Foreground="{DynamicResource TextSecondary}" Margin="0,18,0,0"/>
+                        <CheckBox x:Name="ProtectScreenBox" Content="Keep Shutterbox out of screenshots, recordings and screen sharing while it's unlocked" Margin="0,8,0,0" Click="LockedPrivacy_Click"/>
+                        <CheckBox x:Name="LockOnLeaveBox" Content="Lock it when I minimize Shutterbox, switch to another app or lock Windows" Margin="0,8,0,0" Click="LockedPrivacy_Click"/>
+                        <CheckBox x:Name="PanicBox" Content="Ctrl+Alt+L anywhere locks it and hides Shutterbox" Margin="0,8,0,0" Click="LockedPrivacy_Click"/>
+                        <CheckBox x:Name="HideLockedBox" Content="Hide Locked in the sidebar (open it with Ctrl+Shift+L, or by typing the PIN or password in search and pressing Enter)" Margin="0,8,0,0" Click="LockedPrivacy_Click"/>
+                        <CheckBox x:Name="IntruderBox" Content="Photograph wrong guesses with the camera (encrypted: only someone who can unlock the album can see them)" Margin="0,8,0,0" Click="Intruder_Click"/>
+                        <WrapPanel Margin="0,10,0,0">
+                            <Button Style="{StaticResource ToolButton}" Content="Wrong guesses…" Margin="0,0,8,8" Click="WrongGuesses_Click"/>
+                            <Button x:Name="LockedCheckBtn" Style="{StaticResource ToolButton}" Content="Check the album" Margin="0,0,8,8" Click="LockedCheck_Click"
+                                    ToolTip="Makes sure every file is there and decrypts (after copying or syncing the folder)"/>
+                            <Button x:Name="NewRecoveryBtn" Style="{StaticResource ToolButton}" Content="Get a new recovery key…" Margin="0,0,8,8" Click="NewRecovery_Click"/>
+                        </WrapPanel>
+                        <TextBlock x:Name="GuessSummary" Style="{StaticResource Hint}"/>
+
                         <TextBlock Text="Where it's kept" Foreground="{DynamicResource TextSecondary}" Margin="0,18,0,6"/>
                         <TextBlock x:Name="LockedPath" TextTrimming="CharacterEllipsis"/>
                         <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,8"

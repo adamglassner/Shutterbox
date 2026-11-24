@@ -623,6 +623,105 @@ public partial class MainWindow
             await Idle();
         });
 
+        await Test("Locked album 0.4.0: details, search, an album with its own PIN, wrong guesses", async () =>
+        {
+            var p = Vault.Photos.First();
+            Vault.SetDetails(p, caption: "Under the pier", tags: new List<string> { "Beach" }, favorite: true);
+            Vault.Lock();
+            Assert(Vault.Unlock("hunter22"), "unlock");
+            var again = Vault.Photos.First();
+            AreEqual("Under the pier", again.Caption, "caption kept, encrypted");
+            Assert(again.Favorite && again.Tags.Contains("Beach"), "favorite and tag kept");
+            AreEqual(1, Vault.Photos.Count(x => Vault.SearchText(x).Contains("pier")), "search finds the caption");
+            var vp = Vault.CreateAlbum("Very private");
+            Vault.AddToAlbum(vp, new[] { again });
+            Vault.ProtectAlbum(vp, "9999", "PIN");
+            AreEqual(0, Vault.Count, "its items left the main album");
+            AreEqual(1, Vault.PhotosIn(vp).Count(), "and are in the protected album");
+            Vault.LockAlbum(vp);
+            AreEqual(0, Vault.PhotosIn(vp).Count(), "nothing while it's locked");
+            Assert(!Vault.UnlockAlbum(vp, "1111"), "wrong album PIN refused");
+            Assert(Vault.UnlockAlbum(vp, "9999"), "its PIN opens it");
+            var secret = Vault.PhotosIn(vp).Single();
+            Assert(Vault.ReadBytes(secret.VaultId, secret.ProtectedIn).Length == secret.Size, "decrypts with its own key");
+            Assert(Vault.FailedAttempts.Any(a => a.What == "Album PIN"), "the wrong album PIN is logged");
+            var check = await Vault.CheckAsync();
+            AreEqual(0, check.problems.Count, "check: " + string.Join("; ", check.problems));
+            Vault.UnprotectAlbum(vp);
+            AreEqual(1, Vault.Count, "taking the PIN off brings it back");
+            var rk = Vault.NewRecoveryKey();
+            Vault.Lock();
+            Assert(Vault.UnlockWithRecoveryKey(rk), "the new recovery key works");
+            Assert(!Vault.UnlockWithRecoveryKey(recovery), "the old one doesn't");
+            Assert(Vault.Unlock("hunter22"), "unlock");
+            Vault.EnableIntruderPhotos();
+            var jpeg = File.ReadAllBytes(Lib.Photos.First(x => !x.IsVideo && File.Exists(x.Path)).Path);
+            Vault.SaveIntruderPhoto(jpeg);
+            Assert(Vault.ReadIntruderPhoto(Vault.IntruderPhotos.Single()).AsSpan().SequenceEqual(jpeg), "photo of a wrong guess round trip");
+            var shared = await Vault.DecryptToShareAsync(Vault.Photos.ToList());
+            Assert(File.Exists(shared[0]), "shared copy");
+            Vault.Lock();
+            Assert(!File.Exists(shared[0]), "shared copies go when it locks");
+            Assert(Vault.Unlock("hunter22"), "unlock");
+        });
+
+        await Test("Locked album 0.4.0: opens an album the phone format describes, and makes one it can check", async () =>
+        {
+            var keep = S.LockedFolder;
+            var fixture = Environment.GetEnvironmentVariable("SHUTTERBOX_VAULT4");
+            if (!string.IsNullOrEmpty(fixture) && Directory.Exists(fixture))
+            {
+                Vault.Lock();
+                var copy = IOPath.Combine(root, "vault4");
+                foreach (var f in Directory.GetFiles(fixture, "*", SearchOption.AllDirectories))
+                {
+                    var dest = IOPath.Combine(copy, IOPath.GetRelativePath(fixture, f));
+                    Directory.CreateDirectory(IOPath.GetDirectoryName(dest));
+                    File.Copy(f, dest);
+                }
+                S.LockedFolder = copy;
+                AreEqual("0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f", Vault.Identity, "identity");
+                Assert(Vault.Unlock("2468"), "the reference album opens");
+                AreEqual("IMG_2041.jpg, Beach day.mp4, empty.gif", string.Join(", ", Vault.Photos.OrderBy(x => x.FileName == "empty.gif").ThenBy(x => x.IsVideo).Select(x => x.FileName)), "merged items");
+                var photo = Vault.Photos.First(x => x.FileName == "IMG_2041.jpg");
+                AreEqual("Sunrise at the coast", photo.Caption, "the newer record beat its conflict copy");
+                AreEqual(180, Vault.Photos.First(x => x.IsVideo).Rotation, "the newer conflict copy won");
+                AreEqual("Private stuff, Very private", string.Join(", ", Vault.Albums.Select(a => a.Name)), "albums");
+                AreEqual(1, Vault.LastUnlockWarnings.Count, "the wrong guess since the last unlock");
+                Assert(Directory.GetFiles(IOPath.Combine(copy, "records")).All(f => IOPath.GetFileName(f).Length == 37), "conflict copies tidied");
+                var vp = Vault.Albums.First(a => a.IsProtected);
+                Assert(Vault.UnlockAlbum(vp, "9999"), "its protected album opens");
+                var expected = System.Text.Json.JsonDocument.Parse(File.ReadAllText(IOPath.Combine(copy, "expected4.json"))).RootElement;
+                var hex = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Vault.ReadBytes(Vault.PhotosIn(vp).Single().VaultId, vp.Id))).ToLowerInvariant();
+                AreEqual(expected.GetProperty("secret").GetString(), hex, "protected item");
+                var ih = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Vault.ReadIntruderPhoto(Vault.IntruderPhotos.Single()))).ToLowerInvariant();
+                AreEqual(expected.GetProperty("intruder").GetString(), ih, "photo of a wrong guess (RSA-OAEP from Python)");
+                Vault.Lock();
+            }
+            var export = Environment.GetEnvironmentVariable("SHUTTERBOX_EXPORT");
+            if (!string.IsNullOrEmpty(export))
+            {
+                Vault.Lock();
+                S.LockedFolder = export;
+                var rk = await Task.Run(() => Vault.SetUp("2468", "PIN"));
+                File.WriteAllText(IOPath.Combine(export, "recovery.txt"), rk);
+                var photos = Lib.Photos.Where(x => !x.IsVideo && File.Exists(x.Path)).Take(3).ToList();
+                await Vault.AddAsync(photos);
+                var vp = Vault.CreateAlbum("Very private");
+                Vault.AddToAlbum(vp, Vault.Photos.Take(1));
+                Vault.ProtectAlbum(vp, "9999", "PIN");
+                var a = Vault.CreateAlbum("Trips");
+                Vault.AddToAlbum(a, Vault.Photos);
+                Vault.SetDetails(Vault.Photos.First(), caption: "from Windows", tags: new List<string> { "PC" }, favorite: true);
+                Vault.EnableIntruderPhotos();
+                Vault.SaveIntruderPhoto(File.ReadAllBytes(photos[0].Path));
+                Vault.RecordFailure("PIN");
+                Vault.Lock();
+            }
+            S.LockedFolder = keep;
+            Assert(Vault.Unlock("hunter22"), "back to this PC's album");
+        });
+
         await Test("Selecting lots of photos is easy", async () =>
         {
             ShowView(LibraryView.Photos);
