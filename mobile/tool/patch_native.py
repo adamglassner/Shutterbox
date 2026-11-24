@@ -32,7 +32,6 @@ def android():
         '<uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED"/>',  # "selected photos" (Android 14+)
         '<uses-permission android:name="android.permission.ACCESS_MEDIA_LOCATION"/>',  # where photos were taken
         '<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>',
-        '<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29"/>',
         # opening a Locked album folder copied from a PC, moving it to a folder you choose, importing a folder
         '<uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"/>',
         # taking photos straight into the Locked album, and of wrong guesses (when turned on)
