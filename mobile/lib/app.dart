@@ -13,6 +13,8 @@ import 'models.dart';
 import 'settings.dart';
 import 'updater.dart';
 import 'vault/vault.dart';
+import 'vision/analyzer.dart';
+import 'vision/people.dart';
 
 /// Everything the screens share: settings, the library, the Locked album and the updater.
 class AppState {
@@ -38,11 +40,13 @@ class AppState {
 
   /// Android says Shutterbox went to the background.
   void left() {
+    analyzer?.pause();
     if (_expectingReturn) return;
     if (settings.lockOnLeave) vault.lock();
   }
 
   void returned() {
+    analyzer?.resume();
     _expectingReturn = false;
     checkAutoLock();
     if (vault.isUnlocked) vault.reload();
@@ -82,6 +86,21 @@ class AppState {
     } else if (!watch && _tilt != null) {
       _tilt?.cancel();
       _tilt = null;
+    }
+  }
+
+  /// People and what's in each photo (null where the models aren't available, as in tests).
+  PeopleStore? people;
+  Analyzer? analyzer;
+
+  /// Connects People to the library's search and starts looking through photos.
+  void attachPeople(PeopleStore store, Analyzer? a) {
+    people = store;
+    analyzer = a;
+    library.extraMatch = (i, w) => store.matches(i.id, w);
+    if (a != null) {
+      library.addListener(a.poke);
+      settings.addListener(a.poke);
     }
   }
 

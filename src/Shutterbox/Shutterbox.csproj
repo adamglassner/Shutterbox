@@ -14,7 +14,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
 
     <!-- Version info shown in About, file properties and the installer -->
-    <Version>0.5.0</Version>
+    <Version>0.6.0</Version>
     <InformationalVersion>0.3.0</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <AssemblyVersion>0.3.0.0</AssemblyVersion>

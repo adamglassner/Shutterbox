@@ -1,5 +1,11 @@
 # Shutterbox for Android
 
+## 0.6.0
+
+- **People:** Shutterbox finds the faces in your photos and groups them by who they are (Albums → People). Give someone a name once and search for it to find them anywhere. If a photo isn't them, select it and choose **Not them**; **Same person as…** puts two together.
+- **Search by what's in the photo:** search for "dog", "beach", "cake" or "car" (about 1,000 kinds of things). People suggests what it found under **Things**.
+- It all happens on your phone with small built-in models, the same ones as the Windows app; nothing is uploaded, and Locked album items are never looked at. Shutterbox looks through your photos while it's open; turn it off in **Settings → People and things**.
+
 ## 0.5.0
 
 - **Places:** every photo with a location on a map (OpenStreetMap). Pins group photos taken close together and split as you zoom in; tap one to see its photos. Shutterbox reads locations from the photos in the background (allow "access to photo locations" when Android asks).

@@ -35,6 +35,9 @@ abstract class MediaSource {
   /// A small upright JPEG (for the Locked album's grid).
   Future<Uint8List?> thumbnailJpeg(Item item);
 
+  /// An upright JPEG at most 1280 pixels on its long side, for finding faces and things in it.
+  Future<Uint8List?> analysisJpeg(Item item);
+
   /// Deletes for good, or to Android's own trash where it has one. Returns the ids that are gone.
   Future<List<String>> delete(List<Item> items, {bool toTrash = true});
 
@@ -154,6 +157,10 @@ class DeviceSource implements MediaSource {
   @override
   Future<Uint8List?> thumbnailJpeg(Item item) =>
       _e(item).thumbnailDataWithSize(const ThumbnailSize(400, 400), format: ThumbnailFormat.jpeg, quality: 85);
+
+  @override
+  Future<Uint8List?> analysisJpeg(Item item) =>
+      _e(item).thumbnailDataWithSize(const ThumbnailSize(1280, 1280), format: ThumbnailFormat.jpeg, quality: 90);
 
   @override
   Future<List<String>> delete(List<Item> items, {bool toTrash = true}) async {

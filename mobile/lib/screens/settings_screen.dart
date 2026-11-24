@@ -140,6 +140,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
               if (context.mounted) toast(context, 'Thumbnail cache cleared');
             },
           ),
+          const SectionTitle('People and things'),
+          SwitchListTile(
+            secondary: const Icon(Icons.face_outlined),
+            title: const Text('Find people and things in my photos'),
+            subtitle: const Text('Faces are grouped in People and you can search for what\'s in a photo ("dog", "beach"). It all happens on your phone while Shutterbox is open; nothing is uploaded. Locked album items are never looked at.'),
+            value: s.findPeople,
+            onChanged: (v) => s.update((x) => x.findPeople = v),
+          ),
+          if (app.people != null)
+            ListenableBuilder(
+              listenable: Listenable.merge([app.people!, if (app.analyzer != null) app.analyzer!]),
+              builder: (context, _) => ListTile(
+                leading: const Icon(Icons.restart_alt),
+                title: const Text('Forget all people'),
+                subtitle: Text(app.analyzer != null && app.analyzer!.total > 0 && app.analyzer!.done < app.analyzer!.total
+                    ? 'Looked through ${app.analyzer!.done} of ${app.analyzer!.total} photos so far · ${app.people!.faces.length} faces'
+                    : 'Looked through ${app.people!.photos.length} photos · ${app.people!.faces.length} faces'),
+                onTap: () async {
+                  if (!await confirm(context, 'Forget all people?', 'Every face and person goes, including the names you gave them. Shutterbox looks through your photos again and groups faces from scratch. Your photos aren\'t touched.', action: 'Forget', danger: true)) return;
+                  app.people!.forgetPeople();
+                  await app.people!.save();
+                  app.analyzer?.poke();
+                },
+              ),
+            ),
           const SectionTitle('Locked album'),
           ..._locked(context),
           const SectionTitle('About'),

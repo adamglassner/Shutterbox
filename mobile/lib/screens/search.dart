@@ -40,6 +40,12 @@ class _SearchScreenState extends State<SearchScreen> {
     out.addAll((cameras.entries.toList()..sort((a, b) => b.value.compareTo(a.value))).take(2).map((e) => e.key));
     final tags = <String>{for (final m in lib.meta.values) ...m.tags};
     out.addAll(tags.take(4));
+    final people = AppScope.read(context).people;
+    if (people != null) {
+      bool shown(String id) => lib.byIdFast(id) != null;
+      out.addAll(people.list(shown).where((v) => v.person.named).take(4).map((v) => v.person.name!));
+      out.addAll(people.things(shown).take(6).map((t) => t.$1));
+    }
     out.add('video');
     return out;
   }
@@ -88,7 +94,7 @@ class _SearchScreenState extends State<SearchScreen> {
                       ActionChip(label: Text(s), onPressed: () => _text.text = s),
                   ]),
                   const SizedBox(height: 18),
-                  Text('Search looks at file names, folders, tags, captions, cameras, albums, months and years. Several words narrow it down, like "canon october".',
+                  Text('Search looks at file names, folders, tags, captions, cameras, albums, months, years, people's names and what's in each photo. Several words narrow it down, like "dog beach" or "canon october".',
                       style: TextStyle(color: p.text2, height: 1.4)),
                 ])
               : MediaGrid(

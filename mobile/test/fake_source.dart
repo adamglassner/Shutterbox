@@ -66,6 +66,8 @@ class FakeSource implements MediaSource {
   @override
   Future<Uint8List?> thumbnailJpeg(Item item) async => bytes['${item.source}'];
   @override
+  Future<Uint8List?> analysisJpeg(Item item) async => bytes['${item.source}'];
+  @override
   Future<List<String>> delete(List<Item> items, {bool toTrash = true}) async {
     deleted.addAll(items.map((i) => i.id));
     return [for (final i in items) i.id];

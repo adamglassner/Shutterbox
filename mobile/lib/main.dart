@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:cryptography_flutter/cryptography_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'app.dart';
@@ -14,6 +15,10 @@ import 'settings.dart';
 import 'theme.dart';
 import 'updater.dart';
 import 'vault/vault.dart';
+import 'vision/analyzer.dart';
+import 'vision/people.dart';
+import 'vision/selftest.dart';
+import 'vision/vision.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,6 +42,12 @@ Future<void> main() async {
     defaultLockedFolder: defaultLocked,
     cacheFolder: cache.path,
   );
+  try {
+    final words = VisionWords(await rootBundle.loadString('assets/models/vision_words.txt'));
+    final people = PeopleStore(words, file: File('${support.path}/people.json'));
+    await people.load();
+    app.attachPeople(people, Analyzer(library: library, people: people, vision: Vision(NativeVisionEngine()), settings: settings));
+  } catch (_) {}
   runApp(ShutterboxApp(app: app));
   unawaited(_start(app));
 }
@@ -44,6 +55,8 @@ Future<void> main() async {
 Future<void> _start(AppState app) async {
   // the gallery plugin needs the activity, which is attached by the first frame
   await WidgetsBinding.instance.endOfFrame;
+  final args = await launchArgs();
+  if (args['selftest'] == 'vision' && args['dir'] != null) await visionSelfTest(args['dir']!);
   await app.library.scan(ask: true);
   if (app.library.access == true) {
     app.source.watch(app.library.scan);
@@ -52,6 +65,7 @@ Future<void> _start(AppState app) async {
       app.settings.update((s) => s.askedForAccess = true);
     }
   }
+  app.analyzer?.poke();
   await app.updater.check();
 }
 

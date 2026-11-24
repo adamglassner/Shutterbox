@@ -51,6 +51,9 @@ class Settings extends ChangeNotifier {
   /// Keep the Locked album out of screenshots and the recent-apps preview.
   bool protectScreen = true;
 
+  /// Find faces and what's in each photo, on the phone, while Shutterbox is open.
+  bool findPeople = true;
+
   /// Wrong guesses in a row here, and until when to wait before the next.
   int wrongInARow = 0;
   String waitUntil = '';
@@ -71,6 +74,7 @@ class Settings extends ChangeNotifier {
         'lockFaceDown': lockFaceDown,
         'hideLocked': hideLocked,
         'protectScreen': protectScreen,
+        'findPeople': findPeople,
         'wrongInARow': wrongInARow,
         'waitUntil': waitUntil,
       };
@@ -91,6 +95,7 @@ class Settings extends ChangeNotifier {
     lockFaceDown = j['lockFaceDown'] == true;
     hideLocked = j['hideLocked'] == true;
     protectScreen = j['protectScreen'] != false;
+    findPeople = j['findPeople'] != false;
     wrongInARow = (j['wrongInARow'] as num?)?.toInt() ?? 0;
     waitUntil = '${j['waitUntil'] ?? ''}';
   }

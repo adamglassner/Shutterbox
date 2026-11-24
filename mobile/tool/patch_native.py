@@ -52,6 +52,11 @@ def android():
         s = re.sub(r"compileOptions\s*\{", "compileOptions {\n        isCoreLibraryDesugaringEnabled = true", s, count=1)
     if "desugar_jdk_libs" not in s:
         s += '\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n}\n'
+    if "onnxruntime-android" not in s:
+        # People and "search by what's in the photo": the models run on the phone
+        s += '\ndependencies {\n    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")\n}\n'
+    if "noCompress" not in s and "androidResources" not in s:
+        s = re.sub(r"(android\s*\{)", r'\1\n    androidResources {\n        noCompress += listOf("onnx")\n    }', s, count=1)
     write(g, s)
 
     # Keep plugin classes whole: readable stack traces, and nothing a plugin finds by reflection goes missing
@@ -60,6 +65,7 @@ def android():
 -keep class com.it_nomads.fluttersecurestorage.** { *; }
 -keep class com.crazecoder.openfile.** { *; }
 -keep class io.flutter.plugins.camera.** { *; }
+-keep class ai.onnxruntime.** { *; }
 -keepattributes SourceFile,LineNumberTable
 """)
 
@@ -95,7 +101,14 @@ import android.view.WindowManager
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import io.flutter.FlutterInjector
+import ai.onnxruntime.OnnxTensor
+import ai.onnxruntime.OrtEnvironment
+import ai.onnxruntime.OrtSession
 import java.io.File
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.util.concurrent.Executors
 
 class MainActivity : FlutterFragmentActivity() {
     private var channel: MethodChannel? = null
@@ -123,7 +136,62 @@ class MainActivity : FlutterFragmentActivity() {
                 else -> result.notImplemented()
             }
         }
+        // People and "search by what's in the photo": runs ONNX models off the UI thread
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "shutterbox/vision").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "run" -> {
+                    val model = call.argument<String>("model")!!
+                    val input = call.argument<String>("input")!!
+                    val data = call.argument<ByteArray>("data")!!
+                    val shape = call.argument<IntArray>("shape")!!
+                    vision.execute {
+                        try {
+                            val out = runModel(model, input, data, shape)
+                            runOnUiThread { result.success(out) }
+                        } catch (e: Throwable) {
+                            runOnUiThread { result.error("vision", e.toString(), null) }
+                        }
+                    }
+                }
+                "launchArgs" -> {
+                    val extras = intent?.extras
+                    val map = HashMap<String, String>()
+                    extras?.keySet()?.forEach { k -> extras.getString(k)?.let { map[k] = it } }
+                    result.success(map)
+                }
+                else -> result.notImplemented()
+            }
+        }
         collect(intent)
+    }
+
+    private val vision = Executors.newSingleThreadExecutor()
+    private val sessions = HashMap<String, OrtSession>()
+
+    private fun runModel(model: String, input: String, data: ByteArray, shape: IntArray): HashMap<String, ByteArray> {
+        val env = OrtEnvironment.getEnvironment()
+        val session = sessions.getOrPut(model) {
+            val key = FlutterInjector.instance().flutterLoader().getLookupKeyForAsset(model)
+            val bytes = assets.open(key).use { it.readBytes() }
+            val opts = OrtSession.SessionOptions()
+            opts.setIntraOpNumThreads(2)
+            env.createSession(bytes, opts)
+        }
+        val floats = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
+        val dims = LongArray(shape.size) { shape[it].toLong() }
+        OnnxTensor.createTensor(env, floats, dims).use { tensor ->
+            session.run(mapOf(input to tensor)).use { res ->
+                val out = HashMap<String, ByteArray>()
+                for (entry in res) {
+                    val t = entry.value as OnnxTensor
+                    val fb = t.floatBuffer
+                    val bb = ByteBuffer.allocate(fb.remaining() * 4).order(ByteOrder.LITTLE_ENDIAN)
+                    bb.asFloatBuffer().put(fb)
+                    out[entry.key] = bb.array()
+                }
+                return out
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {

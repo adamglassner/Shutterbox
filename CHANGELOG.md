@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.0
+
+- **People:** Shutterbox finds the faces in your photos and groups them by who they are. Give someone a name once and type it in search to find them anywhere. If a photo isn't them, select it and choose **Not them**; **Same person as** puts two together.
+- **Search by what's in the photo:** search for "dog", "beach", "cake" or "car" (about 1,000 kinds of things). The People page suggests what it found under **Things**.
+- It all happens on your PC with small built-in models (YuNet, SFace and MobileNetV2 from OpenCV Zoo); nothing is uploaded, and Locked album items are never looked at. Shutterbox looks through your library in the background at low priority; turn it off in **Settings → People and things**.
+
 ## 0.5.0
 
 - **Places:** every photo with a location on a map (OpenStreetMap). Drag to move, scroll to zoom; pins group photos taken close together and split as you zoom in. Click one to see its photos. Map tiles are cached on your PC.

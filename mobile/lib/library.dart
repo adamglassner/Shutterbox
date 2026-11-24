@@ -263,6 +263,21 @@ class Library extends ChangeNotifier {
   bool isTrashed(Item i) => meta[i.id]?.trashed != null;
   Item? byId(String id) => _all.where((i) => i.id == id).firstOrNull;
 
+  Map<String, Item>? _byId;
+  List<Item>? _byIdOf;
+
+  /// [byId] through a map (rebuilt when the list of items changes).
+  Item? byIdFast(String id) {
+    if (!identical(_byIdOf, _all) || _byId == null || _byId!.length != _all.length) {
+      _byId = {for (final i in _all) i.id: i};
+      _byIdOf = _all;
+    }
+    return _byId![id];
+  }
+
+  /// Extra matches for search: what's in a photo and who's in it (set by the app when People is available).
+  bool Function(Item item, String word)? extraMatch;
+
   List<Item> get visible => _view('visible', () => _all.where((i) => !isTrashed(i)).toList());
   List<Item> get photos => _view('photos', () => visible.where((i) => !i.isVideo).toList());
   List<Item> get videos => _view('videos', () => visible.where((i) => i.isVideo).toList());
@@ -315,14 +330,16 @@ class Library extends ChangeNotifier {
   }
 
   /// Several words narrow it down ("canon portland"). Matches names, folders, tags, captions, cameras, albums,
-  /// months and years.
+  /// months and years, and (through [extraMatch]) people's names and what's in each photo.
   List<Item> search(String query, [List<Item>? within]) {
     final words = query.toLowerCase().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
     final list = within ?? visible;
     if (words.isEmpty) return list;
+    final extra = extraMatch;
     return list.where((i) {
       final text = searchText(i);
-      return words.every(text.contains);
+      if (words.every(text.contains)) return true;
+      return extra != null && words.every((w) => text.contains(w) || extra(i, w));
     }).toList();
   }
 

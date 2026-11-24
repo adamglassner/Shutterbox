@@ -66,7 +66,7 @@ jobs:
       - name: Tests
         env:
           SB_EXPORT: ${{ runner.temp }}/phone-locked-album
-        run: flutter test test/vault_test.dart test/logic_test.dart
+        run: flutter test test/vault_test.dart test/logic_test.dart test/vision_test.dart
 
       - name: The Windows format opens what the phone made (reference implementation)
         run: |
@@ -183,6 +183,17 @@ jobs:
             if grep -q "com.bytehawkstudio.shutterbox" "$RUNNER_TEMP/crash.txt"; then echo "::error::Shutterbox crashed on launch" && exit 1; fi
             if adb shell pidof com.bytehawkstudio.shutterbox; then echo "Shutterbox started and is running"; else adb logcat -d | grep -iE "shutterbox|flutter|ActivityManager" | tail -80; echo "::error::Shutterbox isn't running 30 seconds after launch" && exit 1; fi
             adb logcat -d | grep -iE "flutter" | tail -40 || true
+            # People and things: the release build runs the models on tests/vision and must find what the reference finds
+            adb shell mkdir -p /sdcard/Download/sb-vision
+            for f in ../tests/vision/*; do adb push "$f" /sdcard/Download/sb-vision/ > /dev/null; done
+            adb shell appops set --uid com.bytehawkstudio.shutterbox MANAGE_EXTERNAL_STORAGE allow || true
+            adb shell am force-stop com.bytehawkstudio.shutterbox
+            adb logcat -c
+            adb shell am start -W -n com.bytehawkstudio.shutterbox/.MainActivity --es selftest vision --es dir /sdcard/Download/sb-vision
+            for i in $(seq 1 80); do if adb logcat -d | grep -q "VISION DONE"; then break; fi; sleep 3; done
+            adb logcat -d | grep "VISION" | sed 's/.*VISION/VISION/' | tee "$RUNNER_TEMP/vision.txt"
+            adb logcat -d | grep -E " E (flutter|AndroidRuntime)|onnx" | head -30 || true
+            if ! grep -q "VISION DONE all passed" "$RUNNER_TEMP/vision.txt"; then echo "::error::The phone didn't find the same faces and things as the reference" && exit 1; fi
 
       - name: Add the emulator's screen to the "screenshots-android" branch
         if: github.event_name != 'pull_request'

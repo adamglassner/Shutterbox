@@ -25,7 +25,11 @@ import 'package:shutterbox/settings.dart';
 import 'package:shutterbox/updater.dart';
 import 'package:shutterbox/vault/vault.dart';
 
+import 'package:shutterbox/screens/people.dart';
+import 'package:shutterbox/vision/people.dart';
+
 import 'fake_source.dart';
+import 'people_fixture.dart';
 import 'fonts.dart';
 
 /// A Locked album with a few photos and two albums, made once for all the screenshots.
@@ -77,6 +81,7 @@ void main() {
     bool locked = false,
     bool unlocked = false,
     UpdateInfo? update,
+    bool people = false,
     Future<void> Function(BuildContext context, AppState app)? then,
   }) async {
     debugDisableShadows = false;
@@ -90,7 +95,9 @@ void main() {
       final lib = Library(source, settings);
       final now = DateTime.now();
       final names = source.bytes.keys.toList();
+      final (List<Item>, PeopleStore)? found = people ? samplePeople(source) : null;
       lib.setItems([
+        ...?found?.$1,
         ...source.sample(),
         // "On this day": the same date in earlier years
         for (var k = 1; k <= 4; k++)
@@ -116,6 +123,7 @@ void main() {
         cacheFolder: tmp.path,
         autoLock: false,
       );
+      if (found != null) app.attachPeople(found.$2, null);
       await tester.runAsync(() async {
         if (unlocked) await vault.unlockWithKey(lockedKey);
         for (final i in [...lib.all, ...vault.items]) {
@@ -185,4 +193,10 @@ void main() {
         await t.pumpAndSettle();
         await t.scrollUntilVisible(find.text('Photograph wrong guesses'), 300, scrollable: find.byType(Scrollable).last);
       }));
+  testWidgets('people', (t) => shot(t, '21-people', tab: 2, people: true, then: (c, app) async => push(c, const PeopleScreen())));
+  testWidgets('person', (t) => shot(t, '22-person', tab: 2, people: true, then: (c, app) async {
+        final eileen = app.people!.list((_) => true).first.person;
+        push(c, CollectionScreen(kind: CollectionKind.person, personId: eileen.id));
+      }));
+  testWidgets('search things', (t) => shot(t, '23-search-cat', people: true, then: (c, app) async => push(c, const SearchScreen(initial: 'cat'))));
 }

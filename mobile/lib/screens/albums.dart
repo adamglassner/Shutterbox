@@ -6,6 +6,7 @@ import '../models.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import 'home.dart';
+import 'people.dart';
 import 'places.dart';
 import 'viewer.dart';
 
@@ -46,6 +47,15 @@ class AlbumsTab extends StatelessWidget {
                 children: [
                   _QuickTile(icon: Icons.favorite_border, label: 'Favorites', count: lib.favorites.length, onTap: () => CollectionScreen.open(context, CollectionKind.favorites)),
                   _QuickTile(icon: Icons.schedule, label: 'Recently added', count: lib.recent.length, onTap: () => CollectionScreen.open(context, CollectionKind.recent)),
+                  if (app.people != null)
+                    ListenableBuilder(
+                      listenable: app.people!,
+                      builder: (context, _) => _QuickTile(
+                          icon: Icons.face_outlined,
+                          label: 'People',
+                          count: app.people!.list((id) => lib.byIdFast(id) != null && !lib.isTrashed(lib.byIdFast(id)!)).length,
+                          onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const PeopleScreen()))),
+                    ),
                   _QuickTile(
                       icon: Icons.place_outlined,
                       label: 'Places',
@@ -244,12 +254,15 @@ class FoldersScreen extends StatelessWidget {
   }
 }
 
-enum CollectionKind { favorites, recent, album, folder, trash, place, onThisDay }
+enum CollectionKind { favorites, recent, album, folder, trash, place, onThisDay, person }
 
 /// One collection: Favorites, Recently added, an album, a folder or Trash.
 class CollectionScreen extends StatefulWidget {
-  const CollectionScreen({super.key, required this.kind, this.album, this.folderId, this.title, this.items});
+  const CollectionScreen({super.key, required this.kind, this.album, this.folderId, this.title, this.items, this.personId});
   final CollectionKind kind;
+
+  /// For a person in People.
+  final String? personId;
   final Album? album;
   final String? folderId;
   final String? title;
@@ -257,8 +270,8 @@ class CollectionScreen extends StatefulWidget {
   /// For a place on the map.
   final List<Item>? items;
 
-  static Future<void> open(BuildContext context, CollectionKind kind, {Album? album, String? folderId, String? title, List<Item>? items}) =>
-      Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => CollectionScreen(kind: kind, album: album, folderId: folderId, title: title, items: items)));
+  static Future<void> open(BuildContext context, CollectionKind kind, {Album? album, String? folderId, String? title, List<Item>? items, String? personId}) =>
+      Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => CollectionScreen(kind: kind, album: album, folderId: folderId, title: title, items: items, personId: personId)));
 
   @override
   State<CollectionScreen> createState() => _CollectionScreenState();
@@ -266,6 +279,7 @@ class CollectionScreen extends StatefulWidget {
 
 class _CollectionScreenState extends State<CollectionScreen> {
   final _sel = Selection();
+  late String? _personId = widget.personId;
 
   @override
   void dispose() {
@@ -283,7 +297,16 @@ class _CollectionScreenState extends State<CollectionScreen> {
       CollectionKind.trash => lib.trash,
       CollectionKind.place => (widget.items ?? const <Item>[]).where((i) => !lib.isTrashed(i) && lib.all.contains(i)).toList(),
       CollectionKind.onThisDay => lib.onThisDay,
+      CollectionKind.person => _personItems(),
     };
+  }
+
+  List<Item> _personItems() {
+    final app = AppScope.read(context);
+    final ids = app.people?.photosOf(_personId ?? '') ?? const <String>[];
+    final out = [for (final id in ids) app.library.byIdFast(id)].whereType<Item>().where((i) => !app.library.isTrashed(i)).toList();
+    out.sort((a, b) => b.taken.compareTo(a.taken));
+    return out;
   }
 
   String get _title => switch (widget.kind) {
@@ -294,6 +317,7 @@ class _CollectionScreenState extends State<CollectionScreen> {
         CollectionKind.trash => 'Trash',
         CollectionKind.place => widget.title ?? 'Place',
         CollectionKind.onThisDay => 'On this day',
+        CollectionKind.person => AppScope.read(context).people?.person(_personId ?? '')?.name ?? 'Who\'s this?',
       };
 
   Widget get _empty => switch (widget.kind) {
@@ -302,6 +326,7 @@ class _CollectionScreenState extends State<CollectionScreen> {
         CollectionKind.album => const EmptyState(icon: Icons.photo_album_outlined, title: 'This album is empty', body: 'Select photos in Photos or Videos and choose Album to add them.'),
         CollectionKind.folder => const EmptyState(icon: Icons.folder_outlined, title: 'Nothing here', body: 'This folder has no photos or videos.'),
         CollectionKind.place => const EmptyState(icon: Icons.place_outlined, title: 'Nothing here now', body: 'These photos were deleted or moved to Trash.'),
+        CollectionKind.person => const EmptyState(icon: Icons.face_outlined, title: 'Nothing here now', body: 'This person\'s photos were deleted or moved to Trash.'),
         CollectionKind.onThisDay => const EmptyState(icon: Icons.event_outlined, title: 'Nothing on this day', body: 'Photos and videos taken on today\'s date in earlier years show up here.'),
         CollectionKind.trash => const EmptyState(icon: Icons.delete_outline, title: 'Trash is empty', body: 'Deleted photos and videos wait here. Emptying Trash deletes them from your phone (to Android\'s own trash where it has one).'),
       };
@@ -351,11 +376,13 @@ class _CollectionScreenState extends State<CollectionScreen> {
     final lib = app.library;
     final p = Palette.of(context);
     return ListenableBuilder(
-      listenable: Listenable.merge([lib, _sel]),
+      listenable: Listenable.merge([lib, _sel, if (widget.kind == CollectionKind.person && app.people != null) app.people!]),
       builder: (context, _) {
         if (widget.kind == CollectionKind.album && !lib.albums.contains(widget.album)) return const Scaffold();
+        final person = widget.kind == CollectionKind.person;
         final items = _items();
         final trash = widget.kind == CollectionKind.trash;
+        final askName = person && app.people?.person(_personId ?? '')?.named != true && items.isNotEmpty;
         return PopScope(
           canPop: !_sel.active,
           onPopInvokedWithResult: (didPop, _) {
@@ -381,9 +408,31 @@ class _CollectionScreenState extends State<CollectionScreen> {
                   IconButton(tooltip: 'Slideshow', icon: const Icon(Icons.slideshow_outlined), onPressed: () => Actions2.slideshow(context, items)),
                 if (widget.kind == CollectionKind.album)
                   IconButton(tooltip: 'Album', icon: const Icon(Icons.more_vert), onPressed: () => AlbumsTab.albumMenu(context, widget.album!, popAfterDelete: true)),
+                if (person)
+                  IconButton(
+                    tooltip: 'Person',
+                    icon: const Icon(Icons.more_vert),
+                    onPressed: () => personMenu(context, _personId!,
+                        onMoved: (id) => setState(() => _personId = id), selectedForCover: _sel.count == 1 ? _sel.of(items).first : null),
+                  ),
               ],
             ),
             body: MediaGrid(
+              header: askName
+                  ? Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                      child: Row(children: [
+                        Expanded(child: Text('Shutterbox thinks these are the same person.', style: TextStyle(color: p.text2))),
+                        FilledButton(
+                            onPressed: () async {
+                              final kept = await renamePerson(context, _personId!);
+                              if (kept != null && mounted) setState(() => _personId = kept);
+                            },
+                            child: const Text('Add a name')),
+                      ]),
+                    )
+                  : null,
+              headerHeight: askName ? 56 : 0,
               items: items,
               selection: _sel,
               groupBy: widget.kind == CollectionKind.recent || trash ? 'none' : (widget.kind == CollectionKind.onThisDay ? 'year' : null),
@@ -405,9 +454,20 @@ class _CollectionScreenState extends State<CollectionScreen> {
                                     lib.removeFromAlbum(widget.album!, _sel.of(items));
                                     _sel.clear();
                                   }
-                                : null,
-                            extraLabel: 'Remove from album',
-                            extraIcon: Icons.remove_circle_outline,
+                                : person
+                                    ? () async {
+                                        final people = app.people!;
+                                        final list = _sel.of(items);
+                                        people.notThisPerson(_personId!, list.map((i) => i.id));
+                                        await people.save();
+                                        _sel.clear();
+                                        if (context.mounted) {
+                                          toast(context, list.length == 1 ? 'Taken out. Shutterbox won\'t put that face with them again.' : 'Took ${list.length} photos out. Shutterbox won\'t put those faces with them again.');
+                                        }
+                                      }
+                                    : null,
+                            extraLabel: person ? 'Not them' : 'Remove from album',
+                            extraIcon: person ? Icons.person_remove_outlined : Icons.remove_circle_outline,
                           ),
                   )
                 : null,
