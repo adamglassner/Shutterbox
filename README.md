@@ -34,6 +34,8 @@ Neither needs .NET installed.
 | **Slideshow** | Of everything, an album or a selection, oldest first, with crossfades. |
 | **Import** | From a camera card, phone or folder. Copies into date folders (`2026\2026-10-14`), skips photos you already have and can clear the card afterwards. Or drop files and folders on the window. |
 | **Videos** | Videos in your folders get their own **Videos** section, apart from your photos. Tiles show the length; the viewer plays them (play/pause, seek, mute). |
+| **Places** | Every photo with a GPS location on an OpenStreetMap map. Nearby photos are grouped into one pin that splits as you zoom in; click a pin to see its photos. Map tiles are cached for 30 days. |
+| **On this day** | Photos taken on today's date in earlier years, grouped by year (a card at the top of Photos on Android, a sidebar entry on Windows). |
 | **Locked album** | An encrypted album for private photos and videos, opened with a PIN, a password or Windows Hello. See below. |
 | **Looks** | Dark (the default, so photos stand out) or Light, with five accent colours. |
 
@@ -104,7 +106,7 @@ In the viewer: Left/Right, + and − to zoom, 0 to fit, Space for the slideshow,
 
 ## Shutterbox for Android
 
-Everything above, on your phone (Android 7 or later). It shows the photos and videos in your phone's gallery (choose which folders in **Settings → Folders**), with the same timeline, Videos section, viewer, details, search, albums, Favorites, Recently added, Folders, Trash, slideshow and Locked album.
+Everything above, on your phone (Android 7 or later). It shows the photos and videos in your phone's gallery (choose which folders in **Settings → Folders**), with the same timeline, Videos section, viewer, details, search, albums, Favorites, Recently added, Folders, Places, On this day, Trash, slideshow and Locked album.
 
 | Photos | Viewer | Locked album | Settings |
 |---|---|---|---|
@@ -134,7 +136,7 @@ Uninstalling Shutterbox leaves these and your photos alone.
 
 - **Shutterbox Server**: a server you run on your own PC or NAS to back up and sync your library and see it on your phone
 - iOS app
-- People (faces) and Places (map)
+- People (faces) and search by what's in a photo, both on your own device (0.6.0)
 
 ## Building
 
