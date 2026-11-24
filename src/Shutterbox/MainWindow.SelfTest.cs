@@ -520,7 +520,7 @@ public partial class MainWindow
             Shot("18-locked-album");
             OpenViewer(_flat[0].Photo);
             await WaitUntil(() => ViewerImage.Source is BitmapSource b && b.PixelWidth >= 1000, 15000, "a locked photo in the viewer");
-            Assert(ViewerShareBtn.Visibility == Visibility.Collapsed, "no sharing from the viewer");
+            Assert(ViewerShareBtn.Visibility == Visibility.Visible && ViewerEditBtn.Visibility == Visibility.Collapsed, "share (a temporary copy) but no editing in place");
             CloseViewer();
 
             LockNow();
@@ -649,6 +649,10 @@ public partial class MainWindow
             AreEqual(0, check.problems.Count, "check: " + string.Join("; ", check.problems));
             Vault.UnprotectAlbum(vp);
             AreEqual(1, Vault.Count, "taking the PIN off brings it back");
+            AreEqual(1, Vault.PhotosIn(vp).Count(), "still in the album");
+            Vault.DeleteAlbum(vp);
+            AreEqual(0, Vault.Albums.Count, "album deleted");
+            AreEqual(1, Vault.Count, "its item stays");
             var rk = Vault.NewRecoveryKey();
             Vault.Lock();
             Assert(Vault.UnlockWithRecoveryKey(rk), "the new recovery key works");
