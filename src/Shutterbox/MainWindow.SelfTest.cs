@@ -516,7 +516,7 @@ public partial class MainWindow
             await WaitForThumbs(3);
             SelectOnly(_flat[0]);
             await Idle();
-            Assert(CaptionBox.Visibility == Visibility.Collapsed && InfoEditBtn.Visibility == Visibility.Collapsed, "no editing or sharing of locked items");
+            Assert(CaptionBox.Visibility == Visibility.Visible && InfoEditBtn.Visibility == Visibility.Collapsed, "captions for locked items, but no editing the file in place");
             Shot("18-locked-album");
             OpenViewer(_flat[0].Photo);
             await WaitUntil(() => ViewerImage.Source is BitmapSource b && b.PixelWidth >= 1000, 15000, "a locked photo in the viewer");

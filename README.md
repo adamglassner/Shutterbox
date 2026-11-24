@@ -55,7 +55,19 @@ Select photos or videos and choose **Lock** (or drag them onto **Locked** in the
 - **Restore** decrypts items back to a folder you choose. **Delete** removes them for good (encrypted items don't go to the Recycle Bin).
 - **Videos** play inside Shutterbox. A player needs a file, so while one plays it's decrypted to a hidden temporary file in `%LOCALAPPDATA%\Shutterbox\LockedPlayback`, deleted when you move on, lock or close Shutterbox (and at the next start if Windows shut down first).
 
-**Cloud and other PCs.** The album is a single folder (`Shutterbox Locked album`). In **Settings → Locked album → Move to another folder** put it in your OneDrive, Dropbox or Google Drive folder, or on a USB drive. On another PC, choose **Use a Locked album from another PC**, pick that folder and unlock it. Windows Hello is set up separately on each PC. Use the album on one PC at a time: two PCs changing it at once through a cloud folder can overwrite each other's changes.
+**Cloud, other PCs and your phone.** The album is a single folder (`Shutterbox Locked album`). In **Settings → Locked album → Move to another folder** put it in your OneDrive, Dropbox or Google Drive folder, or on a USB drive. On another PC, choose **Use a Locked album from another PC**, pick that folder and unlock it; on Android, **Open a Locked album from a PC or another phone**. Windows Hello and fingerprint unlock are set up separately on each device. Since 0.4.0 each item's details are in their own encrypted file, so a PC and a phone can change the album at the same time through a synced folder without overwriting each other. The format is in [docs/locked-album-format.md](docs/locked-album-format.md).
+
+**More privacy (0.4.0):**
+
+- While it's unlocked, Shutterbox is **kept out of screenshots, recordings and screen sharing** (Settings → Locked album).
+- **Lock it when you leave**: when Shutterbox is minimized, you switch apps or Windows locks. **Ctrl+Alt+L** anywhere locks it and hides Shutterbox.
+- **Hide Locked** in the sidebar; open it with **Ctrl+Shift+L**, or type your PIN or password in search and press Enter.
+- **Lock with Shutterbox** when you right-click photos and videos in File Explorer (Windows 11: Show more options). Up to 15 files at a time (a File Explorer limit).
+- **Share for a moment**: Copy or Open with… makes temporary decrypted copies, deleted when it locks or Shutterbox closes.
+- **Albums with their own PIN or password**: their items are re-encrypted with a key only that PIN opens. If it's forgotten they can't be recovered.
+- **Captions, tags, favorites and search** for Locked album items, all encrypted.
+- **Wrong guesses**: after 5 in a row Shutterbox makes you wait (30 seconds, doubling up to 15 minutes). Every wrong PIN, password or recovery key, on any device, is logged and you're told about them when you unlock. Optionally the camera **photographs wrong guesses**: the photo is encrypted to a public key whose private half is inside the album, so only someone who can unlock it can see them.
+- **Check the album** (every file still decrypts, useful after syncing) and **Get a new recovery key**.
 
 ### File types
 
@@ -101,7 +113,7 @@ Everything above, on your phone (Android 7 or later). It shows the photos and vi
 - **Selecting:** tap the check circles, or long-press a tile and drag across others (it scrolls as you go). **Select** on a day's heading, **Select all** in the selection bar.
 - **Import:** a folder (a camera card or USB drive through an adapter) or chosen files, copied into `DCIM/Shutterbox/2026/2026-10-14`, skipping what you already have.
 - **Trash:** emptying it deletes from your phone, into Android's own trash where it has one. **Move to Locked album** deletes the originals for good once they're encrypted and checked (Android asks you to allow it).
-- **Locked album:** the same format as on Windows, so one album works on both. Unlock with your PIN, password or recovery key, and turn on fingerprint or face unlock on each phone. To use an album from your PC, copy its `Shutterbox Locked album` folder to the phone (USB, or a sync app), then **Locked → Open a Locked album from a PC or another phone** (or Settings → Locked album) and pick it. **Settings → Locked album → Move to another folder** puts the phone's album where you can copy or sync it to a PC. Android asks once for "All files access" for these.
+- **Locked album:** the same format as on Windows, so one album works on both, even at once through a synced folder. Also on the phone: keep it out of screenshots and the recent-apps preview, lock as soon as you leave or when the phone is put face down, hide the Locked tab (press and hold "Photos", or type the PIN in search), **Lock with Shutterbox** in Android's share menu, a camera whose photos go straight into the Locked album, share for a moment, albums with their own PIN, wrong-guess waits, log and photos, captions, tags, favorites and search. Unlock with your PIN, password or recovery key, and turn on fingerprint or face unlock on each phone. To use an album from your PC, copy its `Shutterbox Locked album` folder to the phone (USB, or a sync app), then **Locked → Open a Locked album from a PC or another phone** (or Settings → Locked album) and pick it. **Settings → Locked album → Move to another folder** puts the phone's album where you can copy or sync it to a PC. Android asks once for "All files access" for these.
 - **Updates:** Settings → Updates. Android releases are tagged `android-v<version>`; the Windows releases (and the Bytehawk Studio Launcher) are unaffected.
 
 The phone keeps its library, settings and Locked album in Shutterbox's own storage (removed if you uninstall it, so move the Locked album to a folder of your choice, or restore what's in it, before uninstalling).
